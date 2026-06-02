@@ -19,6 +19,8 @@ import static ap26.Color.NONE;
 import static ap26.Color.WHITE;
 
 public class MyBoard implements Board, Cloneable {
+    static final int EXACT_ENDGAME_EMPTY_THRESHOLD = 8;
+
     private final Color[] board;
     private final Color[] initialBoard;
     private final boolean[] blocked;
@@ -183,6 +185,10 @@ public class MyBoard implements Board, Cloneable {
         return count(NONE);
     }
 
+    boolean isExactEndgame() {
+        return countEmptySquares() <= EXACT_ENDGAME_EMPTY_THRESHOLD;
+    }
+
     BoardAnalyzer analyzer() {
         return new BoardAnalyzer(this);
     }
@@ -272,8 +278,11 @@ public class MyBoard implements Board, Cloneable {
 
     @Override
     public boolean isEnd() {
-        return findNoPassLegalIndexes(BLACK).isEmpty()
-                && findNoPassLegalIndexes(WHITE).isEmpty();
+        return !hasLegalMove(BLACK) && !hasLegalMove(WHITE);
+    }
+
+    boolean hasLegalMove(Color color) {
+        return !findNoPassLegalIndexes(color).isEmpty();
     }
 
     @Override

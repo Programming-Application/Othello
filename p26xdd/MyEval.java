@@ -33,7 +33,7 @@ public class MyEval {
         BoardAnalyzer analyzer = myBoard.analyzer();
 
         if (myBoard.isEnd()) {
-            return terminalValue(analyzer, color);
+            return terminalValue(myBoard, color);
         }
 
         return switch (analyzer.phase()) {
@@ -49,6 +49,17 @@ public class MyEval {
 
     static float terminalValue(BoardAnalyzer analyzer, Color color) {
         int discDiff = analyzer.scoreDiff(color);
+        if (discDiff > 0) {
+            return WIN_SCORE + discDiff;
+        }
+        if (discDiff < 0) {
+            return -WIN_SCORE + discDiff;
+        }
+        return DRAW_SCORE;
+    }
+
+    static float terminalValue(MyBoard board, Color color) {
+        int discDiff = board.score() * color.getValue();
         if (discDiff > 0) {
             return WIN_SCORE + discDiff;
         }
