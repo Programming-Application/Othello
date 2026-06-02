@@ -5,33 +5,24 @@ import ap26.Color;
 import ap26.Move;
 import ap26.Player;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-
-import static ap26.Color.BLACK;
-import static ap26.Color.WHITE;
 
 public class OurPlayer extends Player {
     private static final String MY_NAME = "26dd";
-    private static final int DEFAULT_DEPTH_LIMIT = 4;
     private static final boolean DEBUG_SYNC = Boolean.getBoolean("p26xdd.debugSync");
 
-    private final MyEval eval;
-    private final int depthLimit;
+    private final Search search;
     private MyBoard board;
     private Move move;
-    private long gameStartedAtNanos;
     private long accumulatedThinkNanos;
 
     public OurPlayer(Color color) {
-        this(MY_NAME, color, new MyEval(), DEFAULT_DEPTH_LIMIT);
+        this(MY_NAME, color, new MyEval());
     }
 
-    OurPlayer(String name, Color color, MyEval eval, int depthLimit) {
+    OurPlayer(String name, Color color, MyEval eval) {
         super(name, color);
-        this.eval = eval;
-        this.depthLimit = depthLimit;
+        this.search = new Search(eval);
         this.board = new MyBoard();
         resetTimeState();
     }
@@ -63,7 +54,6 @@ public class OurPlayer extends Player {
     }
 
     private void resetTimeState() {
-        this.gameStartedAtNanos = System.nanoTime();
         this.accumulatedThinkNanos = 0L;
     }
 
@@ -84,13 +74,7 @@ public class OurPlayer extends Player {
             return this.move;
         }
 
-        Board searchBoard = isBlack() ? this.board.clone() : this.board.flipped();
-        this.move = null;
-        maxSearch(searchBoard, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, 0);
-
-        Move selected = this.move == null
-                ? Move.of(legalIndexes.get(0), getColor())
-                : this.move.colored(getColor());
+        Move selected = this.search.findBestMove(this.board.clone(), getColor(), this.accumulatedThinkNanos);
 
         if (!legalIndexes.contains(selected.getIndex())) {
             selected = Move.of(legalIndexes.get(0), getColor());
@@ -104,65 +88,5 @@ public class OurPlayer extends Player {
         }
         this.accumulatedThinkNanos += System.nanoTime() - startedAtNanos;
         return this.move;
-    }
-
-    private boolean isBlack() {
-        return getColor() == BLACK;
-    }
-
-    private float maxSearch(Board board, float alpha, float beta, int depth) {
-        if (isTerminal(board, depth)) {
-            return this.eval.value(board);
-        }
-
-        List<Move> moves = order(board.findLegalMoves(BLACK));
-        if (depth == 0) {
-            this.move = moves.get(0);
-        }
-
-        for (Move move : moves) {
-            Board newBoard = board.placed(move);
-            float value = minSearch(newBoard, alpha, beta, depth + 1);
-
-            if (value > alpha) {
-                alpha = value;
-                if (depth == 0) {
-                    this.move = move;
-                }
-            }
-
-            if (alpha >= beta) {
-                break;
-            }
-        }
-
-        return alpha;
-    }
-
-    private float minSearch(Board board, float alpha, float beta, int depth) {
-        if (isTerminal(board, depth)) {
-            return this.eval.value(board);
-        }
-
-        for (Move move : order(board.findLegalMoves(WHITE))) {
-            Board newBoard = board.placed(move);
-            float value = maxSearch(newBoard, alpha, beta, depth + 1);
-            beta = Math.min(beta, value);
-            if (alpha >= beta) {
-                break;
-            }
-        }
-
-        return beta;
-    }
-
-    private boolean isTerminal(Board board, int depth) {
-        return board.isEnd() || depth > this.depthLimit;
-    }
-
-    private List<Move> order(List<Move> moves) {
-        List<Move> shuffled = new ArrayList<>(moves);
-        Collections.shuffle(shuffled);
-        return shuffled;
     }
 }

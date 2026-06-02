@@ -28,6 +28,10 @@ public class MyEval {
                 .sum();
     }
 
+    public float value(Board board, Color color) {
+        return value(board) * color.getValue();
+    }
+
     private float score(Board board, int k) {
         Color color = board.get(k);
         if (color == Color.BLOCK) {

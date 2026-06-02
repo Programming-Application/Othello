@@ -178,6 +178,10 @@ public class MyBoard implements Board, Cloneable {
         return countAll().getOrDefault(color, 0);
     }
 
+    int countEmptySquares() {
+        return count(NONE);
+    }
+
     @Override
     public boolean isEnd() {
         return findNoPassLegalIndexes(BLACK).isEmpty()
