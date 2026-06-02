@@ -1,4 +1,4 @@
-package p26x42;
+package p26x42tune;
 
 import ap26.*;
 import static ap26.Board.*;
@@ -8,16 +8,26 @@ import static ap26.Color.*;
  * 位置評価。非終局は静的な重み行列の総和、終局は最終石差を支配的に評価する。
  */
 class MyEval {
-  // 重み (Phase 4a: 6 対称パラメータを座標降下で最適化した値)。
-  // corner=29, C=10, edgeMid=10, X=-5, innerEdge=-3, center=1
-  static final int[] W = {
-      29, 10, 10, 10, 10, 29,
-      10, -5, -3, -3, -5, 10,
-      10, -3, 1, 1, -3, 10,
-      10, -3, 1, 1, -3, 10,
-      10, -5, -3, -3, -5, 10,
-      29, 10, 10, 10, 10, 29,
+  // 既定の重み (Phase 4 最適化の初期値)
+  static final int[] DEFAULT_W = {
+      10, 10, 10, 10, 10, 10,
+      10, -5, 1, 1, -5, 10,
+      10, 1, 1, 1, 1, 10,
+      10, 1, 1, 1, 1, 10,
+      10, -5, 1, 1, -5, 10,
+      10, 10, 10, 10, 10, 10,
   };
+
+  /** マスごとの重み (36 要素)。チューニングで差し替え可能。*/
+  final int[] W;
+
+  MyEval() {
+    this(DEFAULT_W);
+  }
+
+  MyEval(int[] weights) {
+    this.W = java.util.Arrays.copyOf(weights, LENGTH);
+  }
 
   /** 非終局の位置評価 (BLACK 視点: 黒が有利なほど大きい)。*/
   float value(OurBoard b) {
@@ -85,6 +95,12 @@ public class OurPlayer extends ap26.Player {
   MyEval eval = new MyEval();
   OurBoard board = new OurBoard();
 
+  /**
+   * チューニング用の固定探索深さ。>0 なら反復深化・時間管理・終盤完全読みを使わず、
+   * この深さの α-β を 1 回だけ行う (評価関数の差を局結果に出すため)。
+   */
+  int fixedDepth = 0;
+
   long timeUsedNanos = 0; // このゲームで使った累積思考時間
   long deadline = 0;      // 現在の手の打ち切り時刻 (nanoTime)
   boolean timeUp = false;
@@ -95,6 +111,13 @@ public class OurPlayer extends ap26.Player {
 
   public OurPlayer(Color color) {
     super(MY_NAME, color);
+  }
+
+  /** チューニング用: 評価重み (36 要素) と固定探索深さを注入する。*/
+  public OurPlayer(Color color, int[] weights, int fixedDepth) {
+    super(MY_NAME, color);
+    this.eval = new MyEval(weights);
+    this.fixedDepth = fixedDepth;
   }
 
   /** ゲーム開始時にリーグから呼ばれる。盤面を取り込み、持ち時間の累積をリセットする。*/
@@ -168,6 +191,13 @@ public class OurPlayer extends ap26.Player {
     orderStatic(rootBuf, n0);
     int best = rootBuf[0];
     lastReachedDepth = 0;
+
+    // チューニング用: 固定深さの評価駆動 α-β を 1 回だけ (終盤完全読み・時間管理は使わない)
+    if (fixedDepth > 0) {
+      this.deadline = Long.MAX_VALUE;
+      this.timeUp = false;
+      return rootSearch(root, Math.min(fixedDepth, empties), best);
+    }
 
     // 終盤完全読み: 空きマスが少なければ終局まで厳密に最終石差を最大化
     if (empties <= ENDGAME_THRESHOLD) {
