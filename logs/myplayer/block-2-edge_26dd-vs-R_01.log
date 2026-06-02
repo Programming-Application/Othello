@@ -1,0 +1,344 @@
+Board: block-2-edge
+Black: 26dd
+White: R
+
+Initial board:
+  abcdef
+1|# #   | ..
+2|   .  | o: [d2, e3, b4, c5]
+3|  ox. | 
+4| .xo  | 
+5|  .   | 
+6|      | 
+
+-- Move 1 --
+Turn: o (26dd)
+Legal moves: [d2, e3, b4, c5]
+Selected: c5 by 26dd in 1450.055 ms
+Legal: true
+
+After move 1:
+  abcdef
+1|# #   | c5
+2|      | x: [b3, b5, d5]
+3| .ox  | 
+4|  oo  | 
+5| .O.  | 
+6|      | 
+
+-- Move 2 --
+Turn: x (R)
+Legal moves: [b3, b5, d5]
+Selected: b5 by R in 0.019 ms
+Legal: true
+
+After move 2:
+  abcdef
+1|# #   | b5
+2|   .  | o: [d2, e3, b4, a5]
+3|  ox. | 
+4| .xo  | 
+5|.Xo   | 
+6|      | 
+
+-- Move 3 --
+Turn: o (26dd)
+Legal moves: [d2, e3, b4, a5]
+Selected: b4 by 26dd in 1523.010 ms
+Legal: true
+
+After move 3:
+  abcdef
+1|# #   | b4
+2|      | x: [b3, d5]
+3| .ox  | 
+4| Ooo  | 
+5| xo.  | 
+6|      | 
+
+-- Move 4 --
+Turn: x (R)
+Legal moves: [b3, d5]
+Selected: b3 by R in 0.018 ms
+Legal: true
+
+After move 4:
+  abcdef
+1|# #   | b3
+2|..... | o: [a2, b2, c2, d2, e2, a3, a4, a5, a6]
+3|.Xxx  | 
+4|.xoo  | 
+5|.xo   | 
+6|.     | 
+
+-- Move 5 --
+Turn: o (26dd)
+Legal moves: [a2, b2, c2, d2, e2, a3, a4, a5, a6]
+Selected: a6 by 26dd in 1604.750 ms
+Legal: true
+
+After move 5:
+  abcdef
+1|# #   | a6
+2|      | x: [e4, d5, e5, b6, c6, d6]
+3| xxx  | 
+4| xoo. | 
+5| oo.. | 
+6|O...  | 
+
+-- Move 6 --
+Turn: x (R)
+Legal moves: [e4, d5, e5, b6, c6, d6]
+Selected: b6 by R in 0.018 ms
+Legal: true
+
+After move 6:
+  abcdef
+1|# #   | b6
+2|..... | o: [a2, b2, c2, d2, e2, a3, a4, a5, c6]
+3|.xxx  | 
+4|.xoo  | 
+5|.xo   | 
+6|oX.   | 
+
+-- Move 7 --
+Turn: o (26dd)
+Legal moves: [a2, b2, c2, d2, e2, a3, a4, a5, c6]
+Selected: a5 by 26dd in 1697.482 ms
+Legal: true
+
+After move 7:
+  abcdef
+1|# #   | a5
+2|      | x: [e3, e4, d5, e5, c6, d6]
+3| xxx. | 
+4| xoo. | 
+5|Ooo.. | 
+6|ox..  | 
+
+-- Move 8 --
+Turn: x (R)
+Legal moves: [e3, e4, d5, e5, c6, d6]
+Selected: e3 by R in 0.016 ms
+Legal: true
+
+After move 8:
+  abcdef
+1|# #   | e3
+2|..... | o: [a2, b2, c2, d2, e2, a4, e4, d5, c6]
+3| xxxX | 
+4|.xox. | 
+5|oox.  | 
+6|ox.   | 
+
+-- Move 9 --
+Turn: o (26dd)
+Legal moves: [a2, b2, c2, d2, e2, a4, e4, d5, c6]
+Selected: a4 by 26dd in 1803.744 ms
+Legal: true
+
+After move 9:
+  abcdef
+1|# #   | a4
+2|      | x: [a3, d5]
+3|.xxxx | 
+4|Ooox  | 
+5|oox.  | 
+6|ox    | 
+
+-- Move 10 --
+Turn: x (R)
+Legal moves: [a3, d5]
+Selected: d5 by R in 0.016 ms
+Legal: true
+
+After move 10:
+  abcdef
+1|# #   | d5
+2| .... | o: [b2, c2, d2, e2, e4, e5, c6, d6]
+3| xxxx | 
+4|ooxx. | 
+5|ooxX. | 
+6|ox..  | 
+
+-- Move 11 --
+Turn: o (26dd)
+Legal moves: [b2, c2, d2, e2, e4, e5, c6, d6]
+Selected: c6 by 26dd in 1850.068 ms
+Legal: true
+
+After move 11:
+  abcdef
+1|# #   | c6
+2|      | x: [a3]
+3|.xxxx | 
+4|ooxx  | 
+5|ooxx  | 
+6|ooO   | 
+
+-- Move 12 --
+Turn: x (R)
+Legal moves: [a3]
+Selected: a3 by R in 0.014 ms
+Legal: true
+
+After move 12:
+  abcdef
+1|# #   | a3
+2|......| o: [a2, b2, c2, d2, e2, f2, e4, e5]
+3|Xxxxx | 
+4|oxxx. | 
+5|ooxx. | 
+6|ooo   | 
+
+-- Move 13 --
+Turn: o (26dd)
+Legal moves: [a2, b2, c2, d2, e2, f2, e4, e5]
+Selected: a2 by 26dd in 1850.050 ms
+Legal: true
+
+After move 13:
+  abcdef
+1|# #   | a2
+2|O     | x: []
+3|oxxxx | 
+4|oxxx  | 
+5|ooxx  | 
+6|ooo   | 
+
+-- Move 14 --
+Turn: x (R)
+Legal moves: [..]
+Selected: .. by R in 0.012 ms
+Legal: true
+
+After move 14:
+  abcdef
+1|# #   | ..
+2|o.....| o: [b2, c2, d2, e2, f2, f3, e4, e5, d6, e6]
+3|oxxxx.| 
+4|oxxx. | 
+5|ooxx. | 
+6|ooo.. | 
+
+-- Move 15 --
+Turn: o (26dd)
+Legal moves: [b2, c2, d2, e2, f2, f3, e4, e5, d6, e6]
+Selected: d6 by 26dd in 1850.049 ms
+Legal: true
+
+After move 15:
+  abcdef
+1|# #   | d6
+2|o     | x: []
+3|oxxxx | 
+4|ooxx  | 
+5|ooox  | 
+6|oooO  | 
+
+-- Move 16 --
+Turn: x (R)
+Legal moves: [..]
+Selected: .. by R in 0.014 ms
+Legal: true
+
+After move 16:
+  abcdef
+1|# #   | ..
+2|o.....| o: [b2, c2, d2, e2, f2, f3, e4, e5, e6]
+3|oxxxx.| 
+4|ooxx. | 
+5|ooox. | 
+6|oooo. | 
+
+-- Move 17 --
+Turn: o (26dd)
+Legal moves: [b2, c2, d2, e2, f2, f3, e4, e5, e6]
+Selected: e6 by 26dd in 1850.051 ms
+Legal: true
+
+After move 17:
+  abcdef
+1|# #   | e6
+2|o     | x: []
+3|ooxxx | 
+4|ooox  | 
+5|oooo  | 
+6|ooooO | 
+
+-- Move 18 --
+Turn: x (R)
+Legal moves: [..]
+Selected: .. by R in 0.012 ms
+Legal: true
+
+After move 18:
+  abcdef
+1|# #   | ..
+2|o ....| o: [c2, d2, e2, f2, f3, e4]
+3|ooxxx.| 
+4|ooox. | 
+5|oooo  | 
+6|ooooo | 
+
+-- Move 19 --
+Turn: o (26dd)
+Legal moves: [c2, d2, e2, f2, f3, e4]
+Selected: d2 by 26dd in 1850.044 ms
+Legal: true
+
+After move 19:
+  abcdef
+1|# #   | d2
+2|o  O  | x: []
+3|oooox | 
+4|oooo  | 
+5|oooo  | 
+6|ooooo | 
+
+-- Move 20 --
+Turn: x (R)
+Legal moves: [..]
+Selected: .. by R in 0.013 ms
+Legal: true
+
+After move 20:
+  abcdef
+1|# #   | ..
+2|o  o .| o: [f2, f3, f4]
+3|oooox.| 
+4|oooo .| 
+5|oooo  | 
+6|ooooo | 
+
+-- Move 21 --
+Turn: o (26dd)
+Legal moves: [f2, f3, f4]
+Selected: f2 by 26dd in 3.445 ms
+Legal: true
+
+After move 21:
+  abcdef
+1|# #   | f2
+2|o  o O| x: []
+3|ooooo | 
+4|oooo  | 
+5|oooo  | 
+6|ooooo | 
+
+== Result ==
+Winner: o
+Score: 36
+Moves: [c5, b5, b4, b3, a6, b6, a5, e3, a4, d5, c6, a3, a2, .., d6, .., e6, .., d2, .., f2]
+Foul: -
+Average think ms (black/white): 1575.704 / 0.015
+Total game seconds: 17.338
+
+Final board:
+  abcdef
+1|# #   | f2
+2|o  o O| x: []
+3|ooooo | 
+4|oooo  | 
+5|oooo  | 
+6|ooooo | 
