@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static ap26.Board.LENGTH;
+import static ap26.Board.SIZE;
 import static ap26.Color.BLACK;
 import static ap26.Color.BLOCK;
 import static ap26.Color.NONE;
@@ -180,6 +181,69 @@ public class MyBoard implements Board, Cloneable {
 
     int countEmptySquares() {
         return count(NONE);
+    }
+
+    boolean isCorner(int k) {
+        int row = k / SIZE;
+        int col = k % SIZE;
+        return (row == 0 || row == SIZE - 1) && (col == 0 || col == SIZE - 1);
+    }
+
+    boolean isPseudoCorner(int k) {
+        if (isCorner(k)) {
+            return false;
+        }
+
+        int row = k / SIZE;
+        int col = k % SIZE;
+        int offBoardAnchors = 0;
+        int blockAnchors = 0;
+        int[][] offsets = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+
+        for (int[] offset : offsets) {
+            int nextCol = col + offset[0];
+            int nextRow = row + offset[1];
+            if (!Move.isValid(nextCol, nextRow)) {
+                offBoardAnchors++;
+            } else if (isBlocked(Move.index(nextCol, nextRow))) {
+                blockAnchors++;
+            }
+        }
+
+        return (offBoardAnchors >= 1 && blockAnchors >= 1) || blockAnchors >= 2;
+    }
+
+    boolean isDangerous(int k) {
+        int row = k / SIZE;
+        int col = k % SIZE;
+        int[][] corners = { { 0, 0 }, { SIZE - 1, 0 }, { 0, SIZE - 1 }, { SIZE - 1, SIZE - 1 } };
+
+        for (int[] corner : corners) {
+            int cornerIndex = Move.index(corner[0], corner[1]);
+            if (get(cornerIndex) != NONE || isBlocked(cornerIndex)) {
+                continue;
+            }
+            if (Math.abs(col - corner[0]) <= 1 && Math.abs(row - corner[1]) <= 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    int countStableCandidates(Color color) {
+        int count = 0;
+        for (int k = 0; k < LENGTH; k++) {
+            if (get(k) == color && (isCorner(k) || isPseudoCorner(k) || isEdge(k))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean isEdge(int k) {
+        int row = k / SIZE;
+        int col = k % SIZE;
+        return row == 0 || row == SIZE - 1 || col == 0 || col == SIZE - 1;
     }
 
     @Override

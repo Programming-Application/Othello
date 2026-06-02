@@ -32,6 +32,10 @@ public class MyEval {
         return value(board) * color.getValue();
     }
 
+    static float positionWeight(int k) {
+        return WEIGHTS[k / SIZE][k % SIZE];
+    }
+
     private float score(Board board, int k) {
         Color color = board.get(k);
         if (color == Color.BLOCK) {
