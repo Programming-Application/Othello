@@ -20,6 +20,8 @@ public class FullSelfPlay {
     String[] labels = {"standard", "variant{a1,f6}", "variant{c1,a2,a5}"};
 
     OurPlayer.endgameFallback = 0;
+    OurPlayer.wldProven = 0;
+    OurPlayer.wldFallback = 0;
     long worstGameNanos = 0;
 
     for (int bi = 0; bi < boards.size(); bi++) {
@@ -48,7 +50,10 @@ public class FullSelfPlay {
       }
     }
     System.err.println("------------------------------------------------------------");
-    System.err.printf("endgame fallback count = %d (0 が理想 = E<=20 が常に完走)%n", OurPlayer.endgameFallback);
-    System.err.printf("worst single-player think time = %.1fs (60s 未満必須, 余裕があるほど良い)%n", worstGameNanos / 1e9);
+    System.err.printf("WLD証明: 成功=%d  フォールバック=%d  (成功が多いほど証明ゾーンが高い)%n",
+        OurPlayer.wldProven, OurPlayer.wldFallback);
+    System.err.printf("endgame(≤20) fallback = %d%n", OurPlayer.endgameFallback);
+    System.err.printf("到達した最大の証明/読み空き数(maxReachedDepth) は各ゲーム末に表示%n");
+    System.err.printf("worst single-player think time = %.1fs (60s 未満必須)%n", worstGameNanos / 1e9);
   }
 }

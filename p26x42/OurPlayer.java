@@ -97,8 +97,15 @@ public class OurPlayer extends ap26.Player {
   /** 1 ゲームの持ち時間 (本番 60s)。安全マージンを見て 58s を上限として配分する。*/
   static final long TOTAL_NANOS = 58_000_000_000L;
 
-  /** 空きマス数がこれ以下なら終局まで厳密に読み切る (完全読み)。fastest-first + 予算引上げで 20。*/
+  /** 空きマス数がこれ以下なら終局まで厳密に読み切る (完全読み・最大石差)。fastest-first + 予算引上げで 20。*/
   static int ENDGAME_THRESHOLD = 20;
+
+  /**
+   * 空き ENDGAME_THRESHOLD < e <= WLD_THRESHOLD では「WLD(勝敗のみ)を狭窓で証明」して
+   * 勝ち>引分>負け の手を選ぶ (石差exactは≤20で行う贅沢品)。持続TT利用・時間内に
+   * 証明できなければヒューリスティック探索へフォールバック。
+   */
+  public static int WLD_THRESHOLD = 24;
 
   /**
    * 終盤完全読み手に与える持ち時間の上限。終盤移行手は「そこから完全プレイで勝敗が決まる」
@@ -111,6 +118,8 @@ public class OurPlayer extends ap26.Player {
   public static int lastReachedDepth = 0; // 直近の手で到達した探索深さ
   public static int maxReachedDepth = 0;  // 計測区間での最大到達深さ
   public static int endgameFallback = 0;  // 終盤完全読みが期限切れでIDにフォールバックした回数
+  public static int wldProven = 0;        // WLD証明が時間内に完了した回数
+  public static int wldFallback = 0;      // WLD証明が期限切れでフォールバックした回数
   public static long benchBudgetNanos = 0; // >0 ならこの値を 1 手の持ち時間に固定 (ベンチ用)
 
   /** ムーブオーダリング用の静的優先度 (評価値ではない。角を高く、X/C マスを低く)。*/
@@ -204,8 +213,8 @@ public class OurPlayer extends ap26.Player {
       } else {
         long remaining = TOTAL_NANOS - timeUsedNanos;
         budget = computeBudget(remaining, empties);
-        if (empties <= ENDGAME_THRESHOLD) {
-          // 終盤完全読みには厚めの持ち時間を割く (残りの半分か上限のいずれか小さい方)
+        if (empties <= WLD_THRESHOLD) {
+          // 完全読み/WLD証明には厚めの持ち時間を割く (残りの半分か上限のいずれか小さい方)
           long eg = Math.min(remaining / 2, ENDGAME_BUDGET_CAP_NANOS);
           if (eg > budget)
             budget = eg;
@@ -255,6 +264,18 @@ public class OurPlayer extends ap26.Player {
         return mv;
       }
       endgameFallback++; // 期限切れ (しきい値が大きすぎた場合の保険) → 通常 ID にフォールバック
+    } else if (empties <= WLD_THRESHOLD) {
+      // WLD 証明ゾーン: 勝敗のみ狭窓で証明し win>draw>loss の手を選ぶ (持続TT利用)
+      timeUp = false;
+      int mv = wldRoot(root);
+      if (!timeUp && mv >= 0) {
+        wldProven++;
+        lastReachedDepth = empties;
+        if (empties > maxReachedDepth)
+          maxReachedDepth = empties;
+        return mv;
+      }
+      wldFallback++; // 時間内に証明できず → ヒューリスティック ID へ
     }
 
     for (int depth = 1; depth <= empties; depth++) {
@@ -332,6 +353,32 @@ public class OurPlayer extends ap26.Player {
     this.timeUp = false;
     java.util.Arrays.fill(mtFlag, (byte) 0); // 比較を汚さないようTTクリア
     return maxSearch(root, -INF, INF, depth);
+  }
+
+  /**
+   * WLD 証明ルート: 狭窓 [-1,+1] で各手の勝敗を評価し、勝ち>引分>負け で最善手を返す。
+   * 葉は solveMin が終局まで読む (αβ+持続TT)。時間切れなら -1。
+   */
+  int wldRoot(OurBoard root) {
+    int n = root.genLegal(BLACK, rootBuf);
+    orderStatic(rootBuf, n);
+    int alpha = -1, beta = 1;
+    int best = -2, bestMove = rootBuf[0];
+    for (int i = 0; i < n; i++) {
+      OurBoard c = root.placedIndex(rootBuf[i], BLACK);
+      int v = Integer.signum(solveMin(c, alpha, beta, 1)); // この手を指したときの勝敗(黒視点)
+      if (timeUp)
+        return -1;
+      if (v > best) {
+        best = v;
+        bestMove = rootBuf[i];
+        if (v > alpha)
+          alpha = v;
+      }
+      if (alpha >= beta)
+        break; // 勝ちを確認 → 打切り
+    }
+    return bestMove;
   }
 
   /** ベンチ用: BLACK 手番の局面の最終石差(最善応酬)を厳密に計算する。*/
