@@ -170,6 +170,12 @@ public class OurPlayer extends ap26.Player {
    */
   int fixedDepth = 0;
 
+  // --- Phase F: トポロジ(擬似角)対応の種類重みモード ---
+  boolean topoMode = false;
+  boolean topoReady = false;
+  int[] typeWeights;  // 種類別重み [corner,C,edge,X,interior]
+  int[] topoCoeffs;   // 特徴係数 [cPos,cMob,cFront,cStab]
+
   long timeUsedNanos = 0; // このゲームで使った累積思考時間
   long deadline = 0;      // 現在の手の打ち切り時刻 (nanoTime)
   boolean timeUp = false;
@@ -196,11 +202,33 @@ public class OurPlayer extends ap26.Player {
     this.fixedDepth = fixedDepth;
   }
 
+  /**
+   * Phase F 用: トポロジ種類重み [corner,C,edge,X,interior] + 特徴係数 + 固定深さ。
+   * 位置重み W は setBoard(=盤確定時) に実際の BLOCK 配置を分類して種類重みから生成する。
+   */
+  public OurPlayer(Color color, int[] typeWeights, int[] coeffs, int fixedDepth, boolean topo) {
+    super(MY_NAME, color);
+    this.topoMode = topo;
+    this.typeWeights = typeWeights;
+    this.topoCoeffs = coeffs;
+    this.fixedDepth = fixedDepth;
+  }
+
   /** ゲーム開始時にリーグから呼ばれる。盤面を取り込み、持ち時間の累積をリセットする。*/
   @Override
   public void setBoard(Board b) {
     loadBoard(b);
     this.timeUsedNanos = 0;
+    if (topoMode)
+      buildTopoEval(b); // 盤が確定したので壁を分類して位置重みを生成
+  }
+
+  /** 実際の BLOCK 配置を分類し、種類重みから位置重み W を作って eval を構築する。*/
+  void buildTopoEval(Board b) {
+    int[] types = Topo.classify(b);
+    int[] w = Topo.weightsFromTypes(types, typeWeights);
+    this.eval = new MyEval(w, topoCoeffs);
+    this.topoReady = true;
   }
 
   private void loadBoard(Board b) {
@@ -212,6 +240,8 @@ public class OurPlayer extends ap26.Player {
   public Move think(Board argBoard) {
     long t0 = System.nanoTime();
     loadBoard(argBoard);
+    if (topoMode && !topoReady)
+      buildTopoEval(this.board); // setBoard 未呼出のハーネス向け遅延構築
     Color me = getColor();
 
     Move result;
