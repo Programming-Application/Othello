@@ -140,13 +140,16 @@ public class OurPlayer extends ap26.Player {
   boolean timeUp = false;
 
   // 深さごとの合法手バッファ (アロケーション回避)。index = depthLeft
-  final int[][] moveBuf = new int[40][40];
+  // 第1次元は再帰の深さ(ply)。終盤ソルバの ply はパスでも増えるため、着手数+パス数の最悪
+  // (≈ 2×空き) を収容できるよう 80 に拡大 (40 だと変形盤の多パス手順で配列外参照→例外)。
+  static final int MAX_PLY = 80;
+  final int[][] moveBuf = new int[MAX_PLY][40];
   final int[] rootBuf = new int[40];
 
   // 終盤 fastest-first 順序付け用バッファ (ply 別に子盤面と相手mobilityキーを保持)
   public static int FF_MIN = 7; // 残り空きがこれ以上なら fastest-first を使う (検証で切替)
-  final OurBoard[][] childBuf = new OurBoard[40][40];
-  final int[][] keyBuf = new int[40][40];
+  final OurBoard[][] childBuf = new OurBoard[MAX_PLY][40];
+  final int[][] keyBuf = new int[MAX_PLY][40];
 
   // --- 終盤完全読み用 置換表 (Zobrist hashing) ---
   // 盤面セルのハッシュは OurBoard.h (増分更新)。手番分だけここで XOR する。
@@ -386,6 +389,17 @@ public class OurPlayer extends ap26.Player {
     this.deadline = Long.MAX_VALUE;
     this.timeUp = false;
     return solveMax(root, -1000, 1000, 0);
+  }
+
+  /**
+   * オフライン用: BLACK 手番の局面を窓[alpha,beta]で終局まで解く(αβ+fastest-first+持続TT)。
+   * WLD は alpha=-1,beta=1。budgetNanos>0 で時間制限、期限切れは Integer.MIN_VALUE。
+   */
+  public int solveFromStart(OurBoard root, int alpha, int beta, long budgetNanos) {
+    this.deadline = (budgetNanos <= 0) ? Long.MAX_VALUE : System.nanoTime() + budgetNanos;
+    this.timeUp = false;
+    int v = solveMax(root, alpha, beta, 0);
+    return this.timeUp ? Integer.MIN_VALUE : v;
   }
 
   // BLACK 手番: 最終石差 (BLACK-WHITE) を最大化
