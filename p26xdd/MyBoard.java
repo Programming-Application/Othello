@@ -1,0 +1,228 @@
+package p26xdd;
+
+import ap26.Board;
+import ap26.Color;
+import ap26.Move;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
+
+import static ap26.Board.LENGTH;
+import static ap26.Color.BLACK;
+import static ap26.Color.BLOCK;
+import static ap26.Color.NONE;
+import static ap26.Color.WHITE;
+
+public class MyBoard implements Board, Cloneable {
+    private final Color[] board;
+    private Move move;
+    private String boardId;
+
+    public MyBoard() {
+        this.board = new Color[LENGTH];
+        Arrays.fill(this.board, NONE);
+        this.move = Move.ofPass(NONE);
+        init();
+    }
+
+    private MyBoard(Color[] board, Move move, String boardId) {
+        this.board = Arrays.copyOf(board, board.length);
+        this.move = move;
+        this.boardId = boardId;
+    }
+
+    public static MyBoard copyOf(Board source) {
+        MyBoard copied = new MyBoard();
+        copied.copyFrom(source);
+        return copied;
+    }
+
+    public void copyFrom(Board source) {
+        for (int k = 0; k < LENGTH; k++) {
+            set(k, source.get(k));
+        }
+        this.move = source.getMove();
+        this.boardId = source.getBoardId();
+    }
+
+    private void init() {
+        set(Move.parseIndex("c3"), BLACK);
+        set(Move.parseIndex("d4"), BLACK);
+        set(Move.parseIndex("d3"), WHITE);
+        set(Move.parseIndex("c4"), WHITE);
+    }
+
+    @Override
+    public Color get(int k) {
+        return this.board[k];
+    }
+
+    @Override
+    public Move getMove() {
+        return this.move;
+    }
+
+    @Override
+    public Color getTurn() {
+        return this.move.isNone() ? BLACK : this.move.getColor().flipped();
+    }
+
+    public void set(int k, Color color) {
+        this.board[k] = color;
+    }
+
+    @Override
+    public int count(Color color) {
+        return countAll().getOrDefault(color, 0);
+    }
+
+    @Override
+    public boolean isEnd() {
+        return findNoPassLegalIndexes(BLACK).isEmpty()
+                && findNoPassLegalIndexes(WHITE).isEmpty();
+    }
+
+    @Override
+    public Color winner() {
+        int value = score();
+        if (!isEnd() || value == 0) {
+            return NONE;
+        }
+        return value > 0 ? BLACK : WHITE;
+    }
+
+    @Override
+    public void foul(Color color) {
+        Color winner = color.flipped();
+        IntStream.range(0, LENGTH).forEach(k -> this.board[k] = winner);
+    }
+
+    @Override
+    public int score() {
+        int black = count(BLACK);
+        int white = count(WHITE);
+        int empty = count(NONE);
+        int score = black - white;
+
+        if (black == 0 || white == 0) {
+            score += Integer.signum(score) * empty;
+        }
+
+        return score;
+    }
+
+    private Map<Color, Integer> countAll() {
+        Map<Color, Integer> counts = new EnumMap<>(Color.class);
+        for (Color color : this.board) {
+            counts.merge(color, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    @Override
+    public List<Move> findLegalMoves(Color color) {
+        return findLegalIndexes(color).stream()
+                .map(k -> Move.of(k, color))
+                .toList();
+    }
+
+    private List<Integer> findLegalIndexes(Color color) {
+        List<Integer> moves = findNoPassLegalIndexes(color);
+        if (moves.isEmpty()) {
+            moves.add(Move.PASS);
+        }
+        return moves;
+    }
+
+    List<Integer> findNoPassLegalIndexes(Color color) {
+        List<Integer> moves = new ArrayList<>();
+        for (int k = 0; k < LENGTH; k++) {
+            if (this.board[k] != NONE) {
+                continue;
+            }
+            for (List<Integer> line : lines(k)) {
+                if (!outflanked(line, color).isEmpty()) {
+                    moves.add(k);
+                    break;
+                }
+            }
+        }
+        return moves;
+    }
+
+    private List<List<Integer>> lines(int k) {
+        List<List<Integer>> lines = new ArrayList<>();
+        for (int dir = 0; dir < 8; dir++) {
+            lines.add(Move.line(k, dir));
+        }
+        return lines;
+    }
+
+    private List<Move> outflanked(List<Integer> line, Color color) {
+        if (line.size() <= 1) {
+            return new ArrayList<>();
+        }
+
+        List<Move> flippables = new ArrayList<>();
+        for (int k : line) {
+            Color current = get(k);
+            if (current == NONE || current == BLOCK) {
+                break;
+            }
+            if (current == color) {
+                return flippables;
+            }
+            flippables.add(Move.of(k, color));
+        }
+        return new ArrayList<>();
+    }
+
+    @Override
+    public MyBoard placed(Move move) {
+        MyBoard next = clone();
+        next.move = move;
+
+        if (move.isPass() || move.isNone()) {
+            return next;
+        }
+
+        int index = move.getIndex();
+        Color color = move.getColor();
+        for (List<Integer> line : next.lines(index)) {
+            for (Move flippable : next.outflanked(line, color)) {
+                next.board[flippable.getIndex()] = color;
+            }
+        }
+        next.set(index, color);
+
+        return next;
+    }
+
+    @Override
+    public MyBoard flipped() {
+        MyBoard next = clone();
+        IntStream.range(0, LENGTH)
+                .forEach(k -> next.board[k] = next.board[k].flipped());
+        next.move = this.move.flipped();
+        return next;
+    }
+
+    @Override
+    public MyBoard clone() {
+        return new MyBoard(this.board, this.move, this.boardId);
+    }
+
+    @Override
+    public void setBoardId(String boardId) {
+        this.boardId = boardId;
+    }
+
+    @Override
+    public String getBoardId() {
+        return this.boardId;
+    }
+}
