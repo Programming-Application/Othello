@@ -8,8 +8,7 @@ import static ap26.Color.*;
  * 位置評価。非終局は静的な重み行列の総和、終局は最終石差を支配的に評価する。
  */
 class MyEval {
-  // 重み (Phase 4a: 6 対称パラメータを座標降下で最適化した値)。
-  // corner=29, C=10, edgeMid=10, X=-5, innerEdge=-3, center=1
+  // 位置重み (Phase 4a: 6 対称パラメータを座標降下で最適化)。
   static final int[] W = {
       29, 10, 10, 10, 10, 29,
       10, -5, -3, -3, -5, 10,
@@ -19,17 +18,66 @@ class MyEval {
       29, 10, 10, 10, 10, 29,
   };
 
-  /** 非終局の位置評価 (BLACK 視点: 黒が有利なほど大きい)。*/
+  // 特徴係数 (Phase 4b: 座標降下で最適化)。
+  //   value = CPOS*位置 + CMOB*着手可能数差 + CFRONT*フロンティア差 + CSTAB*確定石差
+  static final int CPOS = 10, CMOB = 31, CFRONT = -20, CSTAB = 20;
+
+  // 角から伸びる2辺 (角自身を除く)。確定石の連結走査用。
+  static final int[][] EDGES_FROM_CORNER = {
+      {1, 2, 3, 4, 5}, {6, 12, 18, 24, 30},      // a1
+      {4, 3, 2, 1, 0}, {11, 17, 23, 29, 35},     // f1
+      {31, 32, 33, 34, 35}, {24, 18, 12, 6, 0},  // a6
+      {34, 33, 32, 31, 30}, {29, 23, 17, 11, 5}, // f6
+  };
+  static final int[] CORNERS = {0, 5, 30, 35};
+
+  final int[] scratch = new int[40]; // 合法手数え用
+
+  /** 非終局の評価 (BLACK 視点)。位置 + mobility + frontier + stability。BLOCK 自動考慮。*/
   float value(OurBoard b) {
-    int s = 0;
+    int pos = 0, frontB = 0, frontW = 0;
     for (int k = 0; k < LENGTH; k++) {
       var c = b.get(k);
-      if (c == BLACK)
-        s += W[k];
-      else if (c == WHITE)
-        s -= W[k];
+      if (c == BLACK) {
+        pos += W[k];
+        if (hasEmptyNeighbor(b, k)) frontB++;
+      } else if (c == WHITE) {
+        pos -= W[k];
+        if (hasEmptyNeighbor(b, k)) frontW++;
+      }
     }
-    return s;
+    int mob = b.genLegal(BLACK, scratch) - b.genLegal(WHITE, scratch);
+    return CPOS * pos + CMOB * mob + CFRONT * (frontB - frontW) + CSTAB * stableDiff(b);
+  }
+
+  /** k に空き(NONE)隣接があるか (フロンティア判定)。*/
+  boolean hasEmptyNeighbor(OurBoard b, int k) {
+    int[][] dirs = OurBoard.LINES[k];
+    for (int d = 0; d < 8; d++) {
+      int[] line = dirs[d];
+      if (line.length > 0 && b.get(line[0]) == NONE)
+        return true;
+    }
+    return false;
+  }
+
+  /** 角アンカーの辺連結による確定石の概算差 (BLACK - WHITE)。BLOCK 角は自動的に除外。*/
+  int stableDiff(OurBoard b) {
+    int sb = 0, sw = 0;
+    for (int ci = 0; ci < 4; ci++) {
+      var cc = b.get(CORNERS[ci]);
+      if (cc != BLACK && cc != WHITE)
+        continue;
+      if (cc == BLACK) sb++; else sw++;
+      for (int e = 0; e < 2; e++) {
+        for (int k : EDGES_FROM_CORNER[ci * 2 + e]) {
+          if (b.get(k) == cc) {
+            if (cc == BLACK) sb++; else sw++;
+          } else break;
+        }
+      }
+    }
+    return sb - sw;
   }
 
   /** 終局の評価。最終石差を支配的なスケールで返す (勝敗・石差を位置評価より優先)。*/

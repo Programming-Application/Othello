@@ -5,44 +5,113 @@ import static ap26.Board.*;
 import static ap26.Color.*;
 
 /**
- * 位置評価。非終局は静的な重み行列の総和、終局は最終石差を支配的に評価する。
+ * 特徴量ベースの評価 (Phase 4b)。BLACK 視点で
+ *   value = cPos·位置 + cMob·着手可能数差 + cFront·フロンティア差 + cStab·確定石差
+ * を返す。mobility/frontier/stability は合法手・空き隣接・角からの連結で計算するため
+ * BLOCK (変形盤) を自動的に考慮する。
  */
 class MyEval {
-  // 既定の重み (Phase 4 最適化の初期値)
+  // Phase 4a で最適化した位置重み (corner=29,C=10,edgeMid=10,X=-5,innerEdge=-3,center=1)
   static final int[] DEFAULT_W = {
-      10, 10, 10, 10, 10, 10,
-      10, -5, 1, 1, -5, 10,
-      10, 1, 1, 1, 1, 10,
-      10, 1, 1, 1, 1, 10,
-      10, -5, 1, 1, -5, 10,
-      10, 10, 10, 10, 10, 10,
+      29, 10, 10, 10, 10, 29,
+      10, -5, -3, -3, -5, 10,
+      10, -3, 1, 1, -3, 10,
+      10, -3, 1, 1, -3, 10,
+      10, -5, -3, -3, -5, 10,
+      29, 10, 10, 10, 10, 29,
   };
+  // 既定の特徴係数 [cPos, cMob, cFront, cStab]。{1,0,0,0} なら位置のみ(Phase4a相当)。
+  static final int[] DEFAULT_C = {1, 0, 0, 0};
 
-  /** マスごとの重み (36 要素)。チューニングで差し替え可能。*/
+  // 角から伸びる2辺 (角自身を除く)。確定石の連結走査用。
+  static final int[][] EDGES_FROM_CORNER = {
+      // a1(0): →row0, ↓col0
+      {1, 2, 3, 4, 5}, {6, 12, 18, 24, 30},
+      // f1(5): ←row0, ↓col5
+      {4, 3, 2, 1, 0}, {11, 17, 23, 29, 35},
+      // a6(30): →row5, ↑col0
+      {31, 32, 33, 34, 35}, {24, 18, 12, 6, 0},
+      // f6(35): ←row5, ↑col5
+      {34, 33, 32, 31, 30}, {29, 23, 17, 11, 5},
+  };
+  static final int[] CORNERS = {0, 5, 30, 35};
+
   final int[] W;
+  final int cPos, cMob, cFront, cStab;
+  final int[] scratch = new int[40]; // 合法手数え用 (プレイヤー毎に独立)
 
   MyEval() {
-    this(DEFAULT_W);
+    this(DEFAULT_W, DEFAULT_C);
   }
 
   MyEval(int[] weights) {
-    this.W = java.util.Arrays.copyOf(weights, LENGTH);
+    this(weights, DEFAULT_C);
   }
 
-  /** 非終局の位置評価 (BLACK 視点: 黒が有利なほど大きい)。*/
+  MyEval(int[] weights, int[] coeffs) {
+    this.W = java.util.Arrays.copyOf(weights, LENGTH);
+    this.cPos = coeffs[0];
+    this.cMob = coeffs[1];
+    this.cFront = coeffs[2];
+    this.cStab = coeffs[3];
+  }
+
+  /** 非終局の評価 (BLACK 視点)。*/
   float value(OurBoard b) {
-    int s = 0;
+    int pos = 0, frontB = 0, frontW = 0;
     for (int k = 0; k < LENGTH; k++) {
       var c = b.get(k);
-      if (c == BLACK)
-        s += W[k];
-      else if (c == WHITE)
-        s -= W[k];
+      if (c == BLACK) {
+        pos += W[k];
+        if (cFront != 0 && hasEmptyNeighbor(b, k)) frontB++;
+      } else if (c == WHITE) {
+        pos -= W[k];
+        if (cFront != 0 && hasEmptyNeighbor(b, k)) frontW++;
+      }
     }
-    return s;
+    int v = cPos * pos;
+    if (cMob != 0) {
+      int mob = b.genLegal(BLACK, scratch) - b.genLegal(WHITE, scratch);
+      v += cMob * mob;
+    }
+    if (cFront != 0)
+      v += cFront * (frontB - frontW);
+    if (cStab != 0)
+      v += cStab * stableDiff(b);
+    return v;
   }
 
-  /** 終局の評価。最終石差を支配的なスケールで返す (勝敗・石差を位置評価より優先)。*/
+  /** k に空き(NONE)隣接があるか (フロンティア判定)。*/
+  boolean hasEmptyNeighbor(OurBoard b, int k) {
+    int[][] dirs = OurBoard.LINES[k];
+    for (int d = 0; d < 8; d++) {
+      int[] line = dirs[d];
+      if (line.length > 0 && b.get(line[0]) == NONE)
+        return true;
+    }
+    return false;
+  }
+
+  /** 角アンカーの辺連結による確定石の概算差 (BLACK - WHITE)。*/
+  int stableDiff(OurBoard b) {
+    int sb = 0, sw = 0;
+    for (int ci = 0; ci < 4; ci++) {
+      var cc = b.get(CORNERS[ci]);
+      if (cc != BLACK && cc != WHITE)
+        continue;
+      if (cc == BLACK) sb++; else sw++;
+      for (int e = 0; e < 2; e++) {
+        for (int k : EDGES_FROM_CORNER[ci * 2 + e]) {
+          if (b.get(k) == cc) {
+            if (cc == BLACK) sb++; else sw++;
+          } else break;
+        }
+      }
+    }
+    return sb - sw;
+  }
+
+  /** 終局の評価。最終石差を支配的なスケールで返す。*/
   float terminal(OurBoard b) {
     return 1_000_000f * b.score();
   }
@@ -113,10 +182,17 @@ public class OurPlayer extends ap26.Player {
     super(MY_NAME, color);
   }
 
-  /** チューニング用: 評価重み (36 要素) と固定探索深さを注入する。*/
+  /** チューニング用: 評価重み (36 要素) と固定探索深さを注入する (特徴係数は既定)。*/
   public OurPlayer(Color color, int[] weights, int fixedDepth) {
     super(MY_NAME, color);
     this.eval = new MyEval(weights);
+    this.fixedDepth = fixedDepth;
+  }
+
+  /** チューニング用: 評価重み + 特徴係数 [cPos,cMob,cFront,cStab] + 固定深さを注入する。*/
+  public OurPlayer(Color color, int[] weights, int[] coeffs, int fixedDepth) {
+    super(MY_NAME, color);
+    this.eval = new MyEval(weights, coeffs);
     this.fixedDepth = fixedDepth;
   }
 
