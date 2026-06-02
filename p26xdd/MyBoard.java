@@ -87,7 +87,7 @@ public class MyBoard implements Board, Cloneable {
         }
 
         int index = move.getIndex();
-        if (isBlocked(index)) {
+        if (isBlocked(index) || get(index) != NONE) {
             return;
         }
 
@@ -155,6 +155,13 @@ public class MyBoard implements Board, Cloneable {
     }
 
     public void set(int k, Color color) {
+        if (color == BLOCK) {
+            this.blocked[k] = true;
+        }
+        if (this.blocked[k]) {
+            this.board[k] = BLOCK;
+            return;
+        }
         this.board[k] = color;
     }
 
@@ -232,7 +239,7 @@ public class MyBoard implements Board, Cloneable {
     List<Integer> findNoPassLegalIndexes(Color color) {
         List<Integer> moves = new ArrayList<>();
         for (int k = 0; k < LENGTH; k++) {
-            if (this.board[k] != NONE) {
+            if (this.board[k] != NONE || isBlocked(k)) {
                 continue;
             }
             for (List<Integer> line : lines(k)) {
@@ -282,7 +289,7 @@ public class MyBoard implements Board, Cloneable {
         }
 
         int index = move.getIndex();
-        if (next.isBlocked(index)) {
+        if (next.isBlocked(index) || next.get(index) != NONE) {
             return next;
         }
 
