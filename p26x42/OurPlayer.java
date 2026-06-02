@@ -32,6 +32,8 @@ class MyEval {
 
 public class OurPlayer extends ap26.Player {
   static final String MY_NAME = "26X4";
+  // 計測用ノードカウンタ (Phase0 ベースライン用。Bench42 から参照)
+  public static long searchNodes = 0;
   MyEval eval;
   int depthLimit;
   Move move;
@@ -103,6 +105,7 @@ public class OurPlayer extends ap26.Player {
   }
 
   float maxSearch(Board board, float alpha, float beta, int depth) {
+    searchNodes++;
     if (isTerminal(board, depth))
       return this.eval.value(board);
 
@@ -130,6 +133,7 @@ public class OurPlayer extends ap26.Player {
   }
 
   float minSearch(Board board, float alpha, float beta, int depth) {
+    searchNodes++;
     if (isTerminal(board, depth))
       return this.eval.value(board);
 

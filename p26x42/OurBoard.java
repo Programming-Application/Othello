@@ -3,17 +3,46 @@ package p26x42;
 import static ap26.Color.*;
 
 import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
 
 import ap26.*;
 
+/**
+ * Board の高速実装 (Phase 1)。
+ *
+ * <p>p26x00 の素朴版を、探索のホットパスから Stream・autoboxing・都度の
+ * ArrayList/Move.line 生成を排除して高速化したもの。Board インタフェースの
+ * 意味と不変性 (placed/flipped/clone は新インスタンスを返す) は維持する。
+ *
+ * <h2>高速化の要点</h2>
+ * <ul>
+ *   <li>各マス k の 8 方向の走査マス列を静的テーブル {@link #LINES} に事前計算</li>
+ *   <li>合法判定・裏返し・石数カウントを primitive ループ化 (アロケーションなし)</li>
+ * </ul>
+ */
 public class OurBoard implements Board, Cloneable {
+
+  /** LINES[k][dir] = マス k から方向 dir へ外側に伸びるマス番号の配列 (盤端まで)。*/
+  static final int[][][] LINES = new int[LENGTH][][];
+  static {
+    for (int k = 0; k < LENGTH; k++) {
+      int[][] dirs = new int[8][];
+      for (int dir = 0; dir < 8; dir++) {
+        var line = Move.line(k, dir); // List<Integer>（初期化時のみ）
+        int[] a = new int[line.size()];
+        for (int i = 0; i < a.length; i++)
+          a[i] = line.get(i);
+        dirs[dir] = a;
+      }
+      LINES[k] = dirs;
+    }
+  }
+
   Color board[];
   Move move = Move.ofPass(NONE);
 
   public OurBoard() {
-    this.board = Stream.generate(() -> NONE).limit(LENGTH).toArray(Color[]::new);
+    this.board = new Color[LENGTH];
+    Arrays.fill(this.board, NONE);
     init();
   }
 
@@ -62,13 +91,15 @@ public class OurBoard implements Board, Cloneable {
   }
 
   public int count(Color color) {
-    return countAll().getOrDefault(color, 0L).intValue();
+    int n = 0;
+    for (int k = 0; k < LENGTH; k++)
+      if (this.board[k] == color)
+        n++;
+    return n;
   }
 
   public boolean isEnd() {
-    var lbs = findNoPassLegalIndexes(BLACK);
-    var lws = findNoPassLegalIndexes(WHITE);
-    return lbs.size() == 0 && lws.size() == 0;
+    return !hasLegalMove(BLACK) && !hasLegalMove(WHITE);
   }
 
   public Color winner() {
@@ -80,30 +111,67 @@ public class OurBoard implements Board, Cloneable {
 
   public void foul(Color color) {
     var winner = color.flipped();
-    IntStream.range(0, LENGTH).forEach(k -> this.board[k] = winner);
+    for (int k = 0; k < LENGTH; k++)
+      this.board[k] = winner;
   }
 
   public int score() {
-    var cs = countAll();
-    var bs = cs.getOrDefault(BLACK, 0L);
-    var ws = cs.getOrDefault(WHITE, 0L);
-    var ns = LENGTH - bs - ws;
-    int score = (int) (bs - ws);
-
+    int bs = 0, ws = 0, ns = 0;
+    for (int k = 0; k < LENGTH; k++) {
+      var c = this.board[k];
+      if (c == BLACK)
+        bs++;
+      else if (c == WHITE)
+        ws++;
+      else if (c == NONE)
+        ns++;
+    }
+    int score = bs - ws;
     if (bs == 0 || ws == 0)
       score += Integer.signum(score) * ns;
-
     return score;
   }
 
-  Map<Color, Long> countAll() {
-    return Arrays.stream(this.board).collect(
-        Collectors.groupingBy(Function.identity(), Collectors.counting()));
+  /** ある色に少なくとも 1 つ合法手があるか (アロケーションなし)。*/
+  boolean hasLegalMove(Color color) {
+    for (int k = 0; k < LENGTH; k++) {
+      if (this.board[k] != NONE)
+        continue;
+      if (isLegalMove(k, color))
+        return true;
+    }
+    return false;
+  }
+
+  /** マス k に color を置けるか (1 方向でも挟めれば合法)。アロケーションなし。*/
+  boolean isLegalMove(int k, Color color) {
+    if (this.board[k] != NONE)
+      return false;
+    int[][] dirs = LINES[k];
+    for (int dir = 0; dir < 8; dir++) {
+      int[] line = dirs[dir];
+      boolean seenOpp = false;
+      for (int i = 0; i < line.length; i++) {
+        var c = this.board[line[i]];
+        if (c == NONE || c == BLOCK)
+          break;
+        if (c == color) {
+          if (seenOpp)
+            return true;
+          break;
+        }
+        seenOpp = true; // 相手石
+      }
+    }
+    return false;
   }
 
   public List<Move> findLegalMoves(Color color) {
-    return findLegalIndexes(color).stream()
-        .map(k -> new Move(k, color)).toList();
+    var ks = findLegalIndexes(color);
+    var moves = new ArrayList<Move>(ks.size());
+    for (int k : ks)
+      moves.add(new Move(k, color));
+    return moves;
   }
 
   List<Integer> findLegalIndexes(Color color) {
@@ -116,40 +184,12 @@ public class OurBoard implements Board, Cloneable {
   List<Integer> findNoPassLegalIndexes(Color color) {
     var moves = new ArrayList<Integer>();
     for (int k = 0; k < LENGTH; k++) {
-      var c = this.board[k];
-      if (c != NONE)
+      if (this.board[k] != NONE)
         continue;
-      for (var line : lines(k)) {
-        var outflanking = outflanked(line, color);
-        if (outflanking.size() > 0)
-          moves.add(k);
-      }
+      if (isLegalMove(k, color))
+        moves.add(k);
     }
     return moves;
-  }
-
-  List<List<Integer>> lines(int k) {
-    var lines = new ArrayList<List<Integer>>();
-    for (int dir = 0; dir < 8; dir++) {
-      var line = Move.line(k, dir);
-      lines.add(line);
-    }
-    return lines;
-  }
-
-  List<Move> outflanked(List<Integer> line, Color color) {
-    if (line.size() <= 1)
-      return new ArrayList<>();
-    var flippables = new ArrayList<Move>();
-    for (int k : line) {
-      var c = get(k);
-      if (c == NONE || c == BLOCK)
-        break;
-      if (c == color)
-        return flippables;
-      flippables.add(new Move(k, color));
-    }
-    return new ArrayList<>();
   }
 
   public OurBoard placed(Move move) {
@@ -159,22 +199,37 @@ public class OurBoard implements Board, Cloneable {
     if (move.isPass() | move.isNone())
       return b;
 
-    var k = move.getIndex();
-    var color = move.getColor();
-    var lines = b.lines(k);
-    for (var line : lines) {
-      for (var p : outflanked(line, color)) {
-        b.board[p.getIndex()] = color;
+    int k = move.getIndex();
+    Color color = move.getColor();
+    int[][] dirs = LINES[k];
+    for (int dir = 0; dir < 8; dir++) {
+      int[] line = dirs[dir];
+      // この方向で color に挟まれる相手石の連続を探す
+      int run = 0;
+      boolean closed = false;
+      for (int i = 0; i < line.length; i++) {
+        var c = b.board[line[i]];
+        if (c == NONE || c == BLOCK)
+          break;
+        if (c == color) {
+          closed = (run > 0);
+          break;
+        }
+        run++; // 相手石
+      }
+      if (closed) {
+        for (int i = 0; i < run; i++)
+          b.board[line[i]] = color;
       }
     }
-    b.set(k, color);
-
+    b.board[k] = color;
     return b;
   }
 
   public OurBoard flipped() {
     var b = clone();
-    IntStream.range(0, LENGTH).forEach(k -> b.board[k] = b.board[k].flipped());
+    for (int k = 0; k < LENGTH; k++)
+      b.board[k] = b.board[k].flipped();
     b.move = this.move.flipped();
     return b;
   }
