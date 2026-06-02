@@ -37,8 +37,26 @@ public class OurBoard implements Board, Cloneable {
     }
   }
 
+  /** Zobrist 乱数表。Z[k][0]=BLACK,[1]=WHITE,[2]=BLOCK。置換表キー用 (手番は OurPlayer 側で XOR)。*/
+  static final long[][] Z = new long[LENGTH][3];
+  static {
+    java.util.Random r = new java.util.Random(0x06022026L);
+    for (int k = 0; k < LENGTH; k++)
+      for (int j = 0; j < 3; j++)
+        Z[k][j] = r.nextLong();
+  }
+
+  /** マス k の色 c の Zobrist 寄与 (NONE は 0)。*/
+  static long zc(int k, Color c) {
+    if (c == BLACK) return Z[k][0];
+    if (c == WHITE) return Z[k][1];
+    if (c == BLOCK) return Z[k][2];
+    return 0L;
+  }
+
   Color board[];
   Move move = Move.ofPass(NONE);
+  long h = 0L; // 盤面セルの Zobrist ハッシュ (増分更新)
 
   public OurBoard() {
     this.board = new Color[LENGTH];
@@ -52,7 +70,9 @@ public class OurBoard implements Board, Cloneable {
   }
 
   public OurBoard clone() {
-    return new OurBoard(this.board, this.move);
+    var b = new OurBoard(this.board, this.move);
+    b.h = this.h;
+    return b;
   }
 
   void init() {
@@ -75,7 +95,9 @@ public class OurBoard implements Board, Cloneable {
   }
 
   public void set(int k, Color color) {
+    this.h ^= zc(k, this.board[k]); // 旧色を除去
     this.board[k] = color;
+    this.h ^= zc(k, color);         // 新色を追加
   }
 
   public boolean equals(Object otherObj) {
@@ -229,11 +251,17 @@ public class OurBoard implements Board, Cloneable {
         run++;
       }
       if (closed) {
-        for (int i = 0; i < run; i++)
-          b.board[line[i]] = color;
+        for (int i = 0; i < run; i++) {
+          int idx = line[i];
+          b.h ^= zc(idx, b.board[idx]); // 相手色を除去
+          b.board[idx] = color;
+          b.h ^= zc(idx, color);        // 自色を追加
+        }
       }
     }
+    b.h ^= zc(k, b.board[k]); // 元は NONE (=0) だが一般化
     b.board[k] = color;
+    b.h ^= zc(k, color);
     return b;
   }
 
@@ -263,11 +291,17 @@ public class OurBoard implements Board, Cloneable {
         run++; // 相手石
       }
       if (closed) {
-        for (int i = 0; i < run; i++)
-          b.board[line[i]] = color;
+        for (int i = 0; i < run; i++) {
+          int idx = line[i];
+          b.h ^= zc(idx, b.board[idx]);
+          b.board[idx] = color;
+          b.h ^= zc(idx, color);
+        }
       }
     }
+    b.h ^= zc(k, b.board[k]);
     b.board[k] = color;
+    b.h ^= zc(k, color);
     return b;
   }
 
@@ -275,7 +309,16 @@ public class OurBoard implements Board, Cloneable {
     var b = clone();
     for (int k = 0; k < LENGTH; k++)
       b.board[k] = b.board[k].flipped();
+    b.recomputeHash(); // 全色入替なので作り直す (1手に1回程度)
     b.move = this.move.flipped();
     return b;
+  }
+
+  /** h を全マスから作り直す。*/
+  void recomputeHash() {
+    long x = 0L;
+    for (int k = 0; k < LENGTH; k++)
+      x ^= zc(k, this.board[k]);
+    this.h = x;
   }
 }

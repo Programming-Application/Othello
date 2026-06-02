@@ -141,6 +141,23 @@ public class OurPlayer extends ap26.Player {
   final int[][] moveBuf = new int[40][40];
   final int[] rootBuf = new int[40];
 
+  // --- 終盤完全読み用 置換表 (Zobrist hashing) ---
+  // 盤面セルのハッシュは OurBoard.h (増分更新)。手番分だけここで XOR する。
+  static final long ZSIDE = 0x9E3779B97F4A7C15L; // 手番(黒番)用の固定乱数
+  static final int TT_BITS = 20;
+  static final int TT_SIZE = 1 << TT_BITS;
+  static final int TT_MASK = TT_SIZE - 1;
+  static final byte TT_EXACT = 1, TT_LOWER = 2, TT_UPPER = 3;
+  final long[] ttKey = new long[TT_SIZE];
+  final int[] ttVal = new int[TT_SIZE];
+  final byte[] ttFlag = new byte[TT_SIZE];
+  final byte[] ttMove = new byte[TT_SIZE];
+
+  /** 盤面ハッシュ。盤面セルは増分更新済みの b.h、手番は ZSIDE で区別。O(1)。*/
+  long hash(OurBoard b, boolean blackToMove) {
+    return blackToMove ? (b.h ^ ZSIDE) : b.h;
+  }
+
   public OurPlayer(Color color) {
     super(MY_NAME, color);
   }
@@ -309,25 +326,42 @@ public class OurPlayer extends ap26.Player {
     if (b.isEnd())
       return b.score();
 
+    final int alpha0 = alpha, beta0 = beta;
+    long h = hash(b, true);
+    int idx = (int) (h & TT_MASK);
+    int ttMv = -1;
+    if (ttFlag[idx] != 0 && ttKey[idx] == h) {
+      int v = ttVal[idx];
+      byte fl = ttFlag[idx];
+      if (fl == TT_EXACT) return v;
+      if (fl == TT_LOWER && v >= beta) return v;
+      if (fl == TT_UPPER && v <= alpha) return v;
+      ttMv = ttMove[idx];
+    }
+
     int[] mv = moveBuf[ply];
     int n = b.genLegal(BLACK, mv);
     if (n == 0)
       return solveMin(b, alpha, beta, ply + 1); // パス
     orderStatic(mv, n);
+    if (ttMv >= 0) moveToFront(mv, n, ttMv);
 
-    int best = -100000;
+    int best = -100000, bestMove = mv[0];
     for (int i = 0; i < n; i++) {
       OurBoard c = b.placedIndex(mv[i], BLACK);
       int v = solveMin(c, alpha, beta, ply + 1);
       if (timeUp)
         return best;
-      if (v > best)
+      if (v > best) {
         best = v;
+        bestMove = mv[i];
+      }
       if (best > alpha)
         alpha = best;
       if (alpha >= beta)
         break;
     }
+    store(idx, h, best, alpha0, beta0, bestMove);
     return best;
   }
 
@@ -341,26 +375,52 @@ public class OurPlayer extends ap26.Player {
     if (b.isEnd())
       return b.score();
 
+    final int alpha0 = alpha, beta0 = beta;
+    long h = hash(b, false);
+    int idx = (int) (h & TT_MASK);
+    int ttMv = -1;
+    if (ttFlag[idx] != 0 && ttKey[idx] == h) {
+      int v = ttVal[idx];
+      byte fl = ttFlag[idx];
+      if (fl == TT_EXACT) return v;
+      if (fl == TT_LOWER && v >= beta) return v;
+      if (fl == TT_UPPER && v <= alpha) return v;
+      ttMv = ttMove[idx];
+    }
+
     int[] mv = moveBuf[ply];
     int n = b.genLegal(WHITE, mv);
     if (n == 0)
       return solveMax(b, alpha, beta, ply + 1); // パス
     orderStatic(mv, n);
+    if (ttMv >= 0) moveToFront(mv, n, ttMv);
 
-    int best = 100000;
+    int best = 100000, bestMove = mv[0];
     for (int i = 0; i < n; i++) {
       OurBoard c = b.placedIndex(mv[i], WHITE);
       int v = solveMax(c, alpha, beta, ply + 1);
       if (timeUp)
         return best;
-      if (v < best)
+      if (v < best) {
         best = v;
+        bestMove = mv[i];
+      }
       if (best < beta)
         beta = best;
       if (alpha >= beta)
         break;
     }
+    store(idx, h, best, alpha0, beta0, bestMove);
     return best;
+  }
+
+  /** TT へ格納。元の窓 [alpha0,beta0] に対する best の位置で EXACT/LOWER/UPPER を決める。*/
+  void store(int idx, long h, int best, int alpha0, int beta0, int bestMove) {
+    byte fl = best <= alpha0 ? TT_UPPER : best >= beta0 ? TT_LOWER : TT_EXACT;
+    ttKey[idx] = h;
+    ttVal[idx] = best;
+    ttFlag[idx] = fl;
+    ttMove[idx] = (byte) bestMove;
   }
 
   // ===========================================================================
