@@ -97,16 +97,20 @@ public class OurPlayer extends ap26.Player {
   /** 1 ゲームの持ち時間 (本番 60s)。安全マージンを見て 58s を上限として配分する。*/
   static final long TOTAL_NANOS = 58_000_000_000L;
 
-  /** 空きマス数がこれ以下なら終局まで厳密に読み切る (完全読み)。計測で調整。*/
-  static int ENDGAME_THRESHOLD = 16;
+  /** 空きマス数がこれ以下なら終局まで厳密に読み切る (完全読み)。fastest-first + 予算引上げで 20。*/
+  static int ENDGAME_THRESHOLD = 20;
 
-  /** 終盤完全読み手に与える持ち時間の上限 (この手で勝敗が決まるため厚めに配分)。*/
-  static final long ENDGAME_BUDGET_CAP_NANOS = 6_000_000_000L;
+  /**
+   * 終盤完全読み手に与える持ち時間の上限。終盤移行手は「そこから完全プレイで勝敗が決まる」
+   * 最重要手で、かつ通常は持ち時間に大きな余裕があるため厚めに配分する (E=20 max ~12s に対応)。
+   */
+  static final long ENDGAME_BUDGET_CAP_NANOS = 15_000_000_000L;
 
   // --- 計測/ベンチ用 (提出時は無害な診断フィールド) ---
   public static long searchNodes = 0;     // 探索ノード総数
   public static int lastReachedDepth = 0; // 直近の手で到達した探索深さ
   public static int maxReachedDepth = 0;  // 計測区間での最大到達深さ
+  public static int endgameFallback = 0;  // 終盤完全読みが期限切れでIDにフォールバックした回数
   public static long benchBudgetNanos = 0; // >0 ならこの値を 1 手の持ち時間に固定 (ベンチ用)
 
   /** ムーブオーダリング用の静的優先度 (評価値ではない。角を高く、X/C マスを低く)。*/
@@ -129,6 +133,11 @@ public class OurPlayer extends ap26.Player {
   // 深さごとの合法手バッファ (アロケーション回避)。index = depthLeft
   final int[][] moveBuf = new int[40][40];
   final int[] rootBuf = new int[40];
+
+  // 終盤 fastest-first 順序付け用バッファ (ply 別に子盤面と相手mobilityキーを保持)
+  public static int FF_MIN = 7; // 残り空きがこれ以上なら fastest-first を使う (検証で切替)
+  final OurBoard[][] childBuf = new OurBoard[40][40];
+  final int[][] keyBuf = new int[40][40];
 
   // --- 終盤完全読み用 置換表 (Zobrist hashing) ---
   // 盤面セルのハッシュは OurBoard.h (増分更新)。手番分だけここで XOR する。
@@ -245,7 +254,7 @@ public class OurPlayer extends ap26.Player {
           maxReachedDepth = empties;
         return mv;
       }
-      // 時間切れ (しきい値が大きすぎた場合の保険) → 通常 ID にフォールバック
+      endgameFallback++; // 期限切れ (しきい値が大きすぎた場合の保険) → 通常 ID にフォールバック
     }
 
     for (int depth = 1; depth <= empties; depth++) {
@@ -359,26 +368,68 @@ public class OurPlayer extends ap26.Player {
     int n = b.genLegal(BLACK, mv);
     if (n == 0)
       return solveMin(b, alpha, beta, ply + 1); // パス
-    orderStatic(mv, n);
-    if (ttMv >= 0) moveToFront(mv, n, ttMv);
 
-    int best = -100000, bestMove = mv[0];
-    for (int i = 0; i < n; i++) {
-      OurBoard c = b.placedIndex(mv[i], BLACK);
-      int v = solveMin(c, alpha, beta, ply + 1);
-      if (timeUp)
-        return best;
-      if (v > best) {
-        best = v;
-        bestMove = mv[i];
+    int best = -100000, bestMove;
+    if (n > 1 && Long.bitCount(b.empty()) >= FF_MIN) {
+      // fastest-first: 子盤面を作り、相手(WHITE)の着手可能数が少ない順に
+      OurBoard[] kids = childBuf[ply];
+      int[] keys = keyBuf[ply];
+      for (int i = 0; i < n; i++) {
+        kids[i] = b.placedIndex(mv[i], BLACK);
+        keys[i] = Long.bitCount(kids[i].legalBits(WHITE));
       }
-      if (best > alpha)
-        alpha = best;
-      if (alpha >= beta)
-        break;
+      ffSort(mv, kids, keys, n);
+      if (ttMv >= 0) moveFrontKids(mv, kids, n, ttMv);
+      bestMove = mv[0];
+      for (int i = 0; i < n; i++) {
+        int v = solveMin(kids[i], alpha, beta, ply + 1);
+        if (timeUp) return best;
+        if (v > best) { best = v; bestMove = mv[i]; }
+        if (best > alpha) alpha = best;
+        if (alpha >= beta) break;
+      }
+    } else {
+      orderStatic(mv, n);
+      if (ttMv >= 0) moveToFront(mv, n, ttMv);
+      bestMove = mv[0];
+      for (int i = 0; i < n; i++) {
+        int v = solveMin(b.placedIndex(mv[i], BLACK), alpha, beta, ply + 1);
+        if (timeUp) return best;
+        if (v > best) { best = v; bestMove = mv[i]; }
+        if (best > alpha) alpha = best;
+        if (alpha >= beta) break;
+      }
     }
     store(idx, h, best, alpha0, beta0, bestMove);
     return best;
+  }
+
+  /** 相手mobility(keys)昇順に mv/kids を挿入ソート。*/
+  void ffSort(int[] mv, OurBoard[] kids, int[] keys, int n) {
+    for (int i = 1; i < n; i++) {
+      int m = mv[i], k = keys[i];
+      OurBoard c = kids[i];
+      int j = i - 1;
+      while (j >= 0 && keys[j] > k) {
+        mv[j + 1] = mv[j]; keys[j + 1] = keys[j]; kids[j + 1] = kids[j];
+        j--;
+      }
+      mv[j + 1] = m; keys[j + 1] = k; kids[j + 1] = c;
+    }
+  }
+
+  /** 値 v の手を kids 連動で先頭へ。*/
+  void moveFrontKids(int[] mv, OurBoard[] kids, int n, int v) {
+    for (int i = 1; i < n; i++) {
+      if (mv[i] == v) {
+        int m = mv[i];
+        OurBoard c = kids[i];
+        System.arraycopy(mv, 0, mv, 1, i);
+        System.arraycopy(kids, 0, kids, 1, i);
+        mv[0] = m; kids[0] = c;
+        return;
+      }
+    }
   }
 
   // WHITE 手番: 最終石差を最小化
@@ -408,23 +459,36 @@ public class OurPlayer extends ap26.Player {
     int n = b.genLegal(WHITE, mv);
     if (n == 0)
       return solveMax(b, alpha, beta, ply + 1); // パス
-    orderStatic(mv, n);
-    if (ttMv >= 0) moveToFront(mv, n, ttMv);
 
-    int best = 100000, bestMove = mv[0];
-    for (int i = 0; i < n; i++) {
-      OurBoard c = b.placedIndex(mv[i], WHITE);
-      int v = solveMax(c, alpha, beta, ply + 1);
-      if (timeUp)
-        return best;
-      if (v < best) {
-        best = v;
-        bestMove = mv[i];
+    int best = 100000, bestMove;
+    if (n > 1 && Long.bitCount(b.empty()) >= FF_MIN) {
+      OurBoard[] kids = childBuf[ply];
+      int[] keys = keyBuf[ply];
+      for (int i = 0; i < n; i++) {
+        kids[i] = b.placedIndex(mv[i], WHITE);
+        keys[i] = Long.bitCount(kids[i].legalBits(BLACK)); // 相手(BLACK)mobility
       }
-      if (best < beta)
-        beta = best;
-      if (alpha >= beta)
-        break;
+      ffSort(mv, kids, keys, n);
+      if (ttMv >= 0) moveFrontKids(mv, kids, n, ttMv);
+      bestMove = mv[0];
+      for (int i = 0; i < n; i++) {
+        int v = solveMax(kids[i], alpha, beta, ply + 1);
+        if (timeUp) return best;
+        if (v < best) { best = v; bestMove = mv[i]; }
+        if (best < beta) beta = best;
+        if (alpha >= beta) break;
+      }
+    } else {
+      orderStatic(mv, n);
+      if (ttMv >= 0) moveToFront(mv, n, ttMv);
+      bestMove = mv[0];
+      for (int i = 0; i < n; i++) {
+        int v = solveMax(b.placedIndex(mv[i], WHITE), alpha, beta, ply + 1);
+        if (timeUp) return best;
+        if (v < best) { best = v; bestMove = mv[i]; }
+        if (best < beta) beta = best;
+        if (alpha >= beta) break;
+      }
     }
     store(idx, h, best, alpha0, beta0, bestMove);
     return best;
