@@ -3,161 +3,278 @@ package p26x42;
 import ap26.*;
 import static ap26.Board.*;
 import static ap26.Color.*;
-import java.util.*;
-import java.util.stream.*;
 
+/**
+ * 位置評価。非終局は静的な重み行列の総和、終局は最終石差を支配的に評価する。
+ */
 class MyEval {
-  static float[][] M = {
-      { 10, 10, 10, 10, 10, 10 },
-      { 10, -5, 1, 1, -5, 10 },
-      { 10, 1, 1, 1, 1, 10 },
-      { 10, 1, 1, 1, 1, 10 },
-      { 10, -5, 1, 1, -5, 10 },
-      { 10, 10, 10, 10, 10, 10 },
+  // 角・辺を重視、角の内斜め(X打ち)を嫌う素朴な重み (Phase 4 で高度化予定)
+  static final int[] W = {
+      10, 10, 10, 10, 10, 10,
+      10, -5, 1, 1, -5, 10,
+      10, 1, 1, 1, 1, 10,
+      10, 1, 1, 1, 1, 10,
+      10, -5, 1, 1, -5, 10,
+      10, 10, 10, 10, 10, 10,
   };
 
-  public float value(Board board) {
-    if (board.isEnd())
-      return 1000000 * board.score();
-
-    return (float) IntStream.range(0, LENGTH)
-        .mapToDouble(k -> score(board, k))
-        .reduce(Double::sum).orElse(0);
+  /** 非終局の位置評価 (BLACK 視点: 黒が有利なほど大きい)。*/
+  float value(OurBoard b) {
+    int s = 0;
+    for (int k = 0; k < LENGTH; k++) {
+      var c = b.get(k);
+      if (c == BLACK)
+        s += W[k];
+      else if (c == WHITE)
+        s -= W[k];
+    }
+    return s;
   }
 
-  float score(Board board, int k) {
-    return M[k / SIZE][k % SIZE] * board.get(k).getValue();
+  /** 終局の評価。最終石差を支配的なスケールで返す (勝敗・石差を位置評価より優先)。*/
+  float terminal(OurBoard b) {
+    return 1_000_000f * b.score();
   }
 }
 
+/**
+ * Phase 2 探索: 反復深化 + 時間管理 + ムーブオーダリングの α-β。
+ *
+ * <h2>設計</h2>
+ * <ul>
+ *   <li><b>常に BLACK 視点で探索</b>: 白番なら {@code flipped()} して黒視点に統一 (旧実装の良い部分を流用)。</li>
+ *   <li><b>反復深化 (ID)</b>: 深さ 1 から 1 ずつ深め、時間切れになったら直前に完了した深さの最善手を採用。
+ *       深さの上限は空きマス数 (それ以上深く読んでも局面が無い)。
+ *       <b>空きが少ない終盤では ID が自然に「深さ=空き数」に到達し、全葉が終局＝完全読みになる。</b>
+ *       (専用の終盤完全読みは Phase 3 で強化)</li>
+ *   <li><b>時間管理</b>: 本番は {@code think(Board)} 単一引数で呼ばれ残り時間が渡らないため、
+ *       {@code nanoTime} で自分の累積思考時間を測り、1 ゲーム {@code TOTAL} 秒から逆算して
+ *       1 手の持ち時間を配分する。{@code setBoard}(ゲーム開始フック) で累積をリセット。</li>
+ *   <li><b>ムーブオーダリング</b>: 角優先の静的順 + 前反復の最善手 (PV) を先頭に。α-β の枝刈り効率を上げる。</li>
+ * </ul>
+ */
 public class OurPlayer extends ap26.Player {
   static final String MY_NAME = "26X4";
-  // 計測用ノードカウンタ (Phase0 ベースライン用。Bench42 から参照)
-  public static long searchNodes = 0;
-  MyEval eval;
-  int depthLimit;
-  Move move;
-  OurBoard board;
+
+  /** 1 ゲームの持ち時間 (本番 60s)。安全マージンを見て 58s を上限として配分する。*/
+  static final long TOTAL_NANOS = 58_000_000_000L;
+
+  // --- 計測/ベンチ用 (提出時は無害な診断フィールド) ---
+  public static long searchNodes = 0;     // 探索ノード総数
+  public static int lastReachedDepth = 0; // 直近の手で到達した探索深さ
+  public static int maxReachedDepth = 0;  // 計測区間での最大到達深さ
+  public static long benchBudgetNanos = 0; // >0 ならこの値を 1 手の持ち時間に固定 (ベンチ用)
+
+  /** ムーブオーダリング用の静的優先度 (評価値ではない。角を高く、X/C マスを低く)。*/
+  static final int[] PRIO = {
+      120, -20, 20, 20, -20, 120,
+      -20, -40, -5, -5, -40, -20,
+      20, -5, 15, 15, -5, 20,
+      20, -5, 15, 15, -5, 20,
+      -20, -40, -5, -5, -40, -20,
+      120, -20, 20, 20, -20, 120,
+  };
+
+  MyEval eval = new MyEval();
+  OurBoard board = new OurBoard();
+
+  long timeUsedNanos = 0; // このゲームで使った累積思考時間
+  long deadline = 0;      // 現在の手の打ち切り時刻 (nanoTime)
+  boolean timeUp = false;
+
+  // 深さごとの合法手バッファ (アロケーション回避)。index = depthLeft
+  final int[][] moveBuf = new int[40][40];
+  final int[] rootBuf = new int[40];
 
   public OurPlayer(Color color) {
-    this(MY_NAME, color, new MyEval(), 4);
+    super(MY_NAME, color);
   }
 
-  public OurPlayer(String name, Color color, MyEval eval, int depthLimit) {
-    super(name, color);
-    this.eval = eval;
-    this.depthLimit = depthLimit;
-    this.board = new OurBoard();
+  /** ゲーム開始時にリーグから呼ばれる。盤面を取り込み、持ち時間の累積をリセットする。*/
+  @Override
+  public void setBoard(Board b) {
+    loadBoard(b);
+    this.timeUsedNanos = 0;
   }
 
-  public OurPlayer(String name, Color color, int depthLimit) {
-    this(name, color, new MyEval(), depthLimit);
+  private void loadBoard(Board b) {
+    for (int k = 0; k < LENGTH; k++)
+      this.board.set(k, b.get(k));
   }
 
-  public void setBoard(Board board) {
-    for (var i = 0; i < LENGTH; i++) {
-      this.board.set(i, board.get(i));
-    }
-  }
+  @Override
+  public Move think(Board argBoard) {
+    long t0 = System.nanoTime();
+    loadBoard(argBoard);
+    Color me = getColor();
 
-  boolean isBlack() {
-    return getColor() == BLACK;
-  }
-
-  public Move think(Board board) {
-    // 引数のboardを使用してBLOCK情報を保持
-    setBoard(board);
-
-    if (this.board.findNoPassLegalIndexes(getColor()).isEmpty()) {
-      this.move = Move.ofPass(getColor());
+    Move result;
+    if (!this.board.hasLegalMove(me)) {
+      result = Move.ofPass(me);
     } else {
-      var newBoard = isBlack() ? this.board.clone() : this.board.flipped();
-      this.move = null;
+      // 常に BLACK 視点に統一 (flip は色のみ入替で、マス番号は不変)
+      OurBoard root = (me == BLACK) ? this.board.clone() : this.board.flipped();
+      int empties = root.count(NONE);
 
-      var legals = this.board.findNoPassLegalIndexes(getColor());
-
-      maxSearch(newBoard, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, 0);
-
-      this.move = this.move.colored(getColor());
-
-      if (legals.contains(this.move.getIndex()) == false) {
-        System.err.println("**************");
-        System.err.println("ILLEGAL MOVE DETECTED IN OURPLAYER:");
-        System.err.println("Legals: " + legals);
-        System.err.println("Chosen move: " + this.move);
-        System.err.println("Move index: " + this.move.getIndex());
-        System.err.println("Internal board: " + this.board);
-        System.err.println("Search board: " + newBoard);
-        System.err.println("**************");
-        // 非合法手の場合は最初の合法手を選択
-        if (!legals.isEmpty()) {
-          this.move = new Move(legals.get(0), getColor());
-          System.err.println("Fallback to first legal move: " + this.move);
-        } else {
-          this.move = Move.ofPass(getColor());
-          System.err.println("No legal moves, using pass");
-        }
+      long budget;
+      if (benchBudgetNanos > 0) {
+        budget = benchBudgetNanos;
+      } else {
+        long remaining = TOTAL_NANOS - timeUsedNanos;
+        budget = computeBudget(remaining, empties);
       }
+      this.deadline = System.nanoTime() + budget;
+
+      int chosen = searchBestMove(root, empties);
+
+      // 防御: 念のため合法性を確認し、非合法なら最初の合法手へ
+      if (chosen < 0 || !this.board.isLegalMove(chosen, me)) {
+        int n = this.board.genLegal(me, rootBuf);
+        chosen = (n > 0) ? rootBuf[0] : -1;
+      }
+      result = (chosen >= 0) ? new Move(chosen, me) : Move.ofPass(me);
     }
 
-    this.board = this.board.placed(this.move);
-    return this.move;
+    timeUsedNanos += System.nanoTime() - t0;
+    return result;
   }
 
-  float maxSearch(Board board, float alpha, float beta, int depth) {
-    searchNodes++;
-    if (isTerminal(board, depth))
-      return this.eval.value(board);
+  /** 残り時間と空きマス数から 1 手の持ち時間を決める。*/
+  long computeBudget(long remainingNanos, int empties) {
+    int myMovesLeft = Math.max(1, empties / 2); // 自分の残り手数の概算
+    long budget = remainingNanos / (myMovesLeft + 1);
+    budget = Math.min(budget, remainingNanos / 2); // 1 手で残りの半分を超えない
+    budget = Math.max(budget, 5_000_000L);         // 下限 5ms
+    budget = Math.min(budget, Math.max(remainingNanos, 1_000_000L)); // 残りを超えない
+    return budget;
+  }
 
-    var moves = board.findLegalMoves(BLACK);
-    moves = order(moves);
+  /** 反復深化。完了した最深の最善手を返す。*/
+  int searchBestMove(OurBoard root, int empties) {
+    int n0 = root.genLegal(BLACK, rootBuf);
+    orderStatic(rootBuf, n0);
+    int best = rootBuf[0];
+    lastReachedDepth = 0;
 
-    if (depth == 0)
-      this.move = moves.get(0);
+    for (int depth = 1; depth <= empties; depth++) {
+      timeUp = false;
+      int b = rootSearch(root, depth, best);
+      if (timeUp)
+        break; // 未完了の反復は破棄
+      best = b;
+      lastReachedDepth = depth;
+      if (depth > maxReachedDepth)
+        maxReachedDepth = depth;
+      if (System.nanoTime() >= deadline)
+        break; // 次の深さに行く時間がない
+    }
+    return best;
+  }
 
-    for (var move : moves) {
-      var newBoard = board.placed(move);
-      float v = minSearch(newBoard, alpha, beta, depth + 1);
+  /** ルートの 1 反復。pv (前反復の最善手) を先頭に試す。*/
+  int rootSearch(OurBoard root, int depth, int pv) {
+    int n = root.genLegal(BLACK, rootBuf);
+    orderStatic(rootBuf, n);
+    moveToFront(rootBuf, n, pv);
 
+    float alpha = Float.NEGATIVE_INFINITY;
+    float beta = Float.POSITIVE_INFINITY;
+    int best = rootBuf[0];
+    for (int i = 0; i < n; i++) {
+      OurBoard c = root.placedIndex(rootBuf[i], BLACK);
+      float v = minSearch(c, alpha, beta, depth - 1);
+      if (timeUp)
+        return best;
       if (v > alpha) {
         alpha = v;
-        if (depth == 0)
-          this.move = move;
+        best = rootBuf[i];
       }
+    }
+    return best;
+  }
 
+  // BLACK 手番 (最大化)
+  float maxSearch(OurBoard b, float alpha, float beta, int depthLeft) {
+    searchNodes++;
+    if ((searchNodes & 1023) == 0 && System.nanoTime() >= deadline)
+      timeUp = true;
+    if (timeUp)
+      return alpha;
+    if (b.isEnd())
+      return eval.terminal(b);
+    if (depthLeft == 0)
+      return eval.value(b);
+
+    int[] mv = moveBuf[depthLeft];
+    int n = b.genLegal(BLACK, mv);
+    if (n == 0)
+      return minSearch(b, alpha, beta, depthLeft - 1); // パス
+    orderStatic(mv, n);
+
+    for (int i = 0; i < n; i++) {
+      OurBoard c = b.placedIndex(mv[i], BLACK);
+      float v = minSearch(c, alpha, beta, depthLeft - 1);
+      if (v > alpha)
+        alpha = v;
       if (alpha >= beta)
         break;
+      if (timeUp)
+        break;
     }
-
     return alpha;
   }
 
-  float minSearch(Board board, float alpha, float beta, int depth) {
+  // WHITE 手番 (最小化)
+  float minSearch(OurBoard b, float alpha, float beta, int depthLeft) {
     searchNodes++;
-    if (isTerminal(board, depth))
-      return this.eval.value(board);
+    if ((searchNodes & 1023) == 0 && System.nanoTime() >= deadline)
+      timeUp = true;
+    if (timeUp)
+      return beta;
+    if (b.isEnd())
+      return eval.terminal(b);
+    if (depthLeft == 0)
+      return eval.value(b);
 
-    var moves = board.findLegalMoves(WHITE);
-    moves = order(moves);
+    int[] mv = moveBuf[depthLeft];
+    int n = b.genLegal(WHITE, mv);
+    if (n == 0)
+      return maxSearch(b, alpha, beta, depthLeft - 1); // パス
+    orderStatic(mv, n);
 
-    for (var move : moves) {
-      var newBoard = board.placed(move);
-      float v = maxSearch(newBoard, alpha, beta, depth + 1);
-      beta = Math.min(beta, v);
+    for (int i = 0; i < n; i++) {
+      OurBoard c = b.placedIndex(mv[i], WHITE);
+      float v = maxSearch(c, alpha, beta, depthLeft - 1);
+      if (v < beta)
+        beta = v;
       if (alpha >= beta)
         break;
+      if (timeUp)
+        break;
     }
-
     return beta;
   }
 
-  boolean isTerminal(Board board, int depth) {
-    return board.isEnd() || depth > this.depthLimit;
+  /** 先頭 n 個を PRIO 降順に挿入ソート (n は小さいので軽い)。*/
+  void orderStatic(int[] a, int n) {
+    for (int i = 1; i < n; i++) {
+      int x = a[i], px = PRIO[x], j = i - 1;
+      while (j >= 0 && PRIO[a[j]] < px) {
+        a[j + 1] = a[j];
+        j--;
+      }
+      a[j + 1] = x;
+    }
   }
 
-  List<Move> order(List<Move> moves) {
-    var shuffled = new ArrayList<Move>(moves);
-    Collections.shuffle(shuffled);
-    return shuffled;
+  /** 値 v を先頭に移動 (見つからなければ何もしない)。*/
+  void moveToFront(int[] a, int n, int v) {
+    for (int i = 1; i < n; i++) {
+      if (a[i] == v) {
+        System.arraycopy(a, 0, a, 1, i);
+        a[0] = v;
+        return;
+      }
+    }
   }
 }

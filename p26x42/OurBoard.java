@@ -192,6 +192,51 @@ public class OurBoard implements Board, Cloneable {
     return moves;
   }
 
+  /**
+   * 合法手のマス番号を {@code out} に詰めて個数を返す (PASS は含めない、アロケーションなし)。
+   * 探索のホットパス専用。{@code out} は十分大きいこと (>= 36)。
+   */
+  int genLegal(Color color, int[] out) {
+    int n = 0;
+    for (int k = 0; k < LENGTH; k++) {
+      if (this.board[k] != NONE)
+        continue;
+      if (isLegalMove(k, color))
+        out[n++] = k;
+    }
+    return n;
+  }
+
+  /**
+   * マス k に color を着手した新盤面を返す (Move を生成しない探索専用版)。
+   * {@code move} フィールドは更新しない (探索中は参照しないため)。
+   */
+  OurBoard placedIndex(int k, Color color) {
+    var b = clone();
+    int[][] dirs = LINES[k];
+    for (int dir = 0; dir < 8; dir++) {
+      int[] line = dirs[dir];
+      int run = 0;
+      boolean closed = false;
+      for (int i = 0; i < line.length; i++) {
+        var c = b.board[line[i]];
+        if (c == NONE || c == BLOCK)
+          break;
+        if (c == color) {
+          closed = (run > 0);
+          break;
+        }
+        run++;
+      }
+      if (closed) {
+        for (int i = 0; i < run; i++)
+          b.board[line[i]] = color;
+      }
+    }
+    b.board[k] = color;
+    return b;
+  }
+
   public OurBoard placed(Move move) {
     var b = clone();
     b.move = move;
