@@ -12,6 +12,7 @@ final class MoveOrdering {
     private static final int PREFERRED_MOVE_BONUS = 100_000;
     private static final int CORNER_BONUS = 50_000;
     private static final int PSEUDO_CORNER_BONUS = 25_000;
+    private static final int BLOCK_ADJACENT_BONUS = 4_000;
     private static final int KILLER_PRIMARY_BONUS = 12_000;
     private static final int KILLER_SECONDARY_BONUS = 10_000;
     private static final int MOBILITY_WEIGHT = 700;
@@ -59,6 +60,8 @@ final class MoveOrdering {
             score += CORNER_BONUS;
         } else if (board.isPseudoCorner(move.getIndex())) {
             score += PSEUDO_CORNER_BONUS;
+        } else if (board.isBlockAdjacentBonusSquare(move.getIndex())) {
+            score += BLOCK_ADJACENT_BONUS;
         }
 
         int killerRank = killerMoves.rank(depth, move);

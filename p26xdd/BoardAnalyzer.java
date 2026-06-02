@@ -19,8 +19,6 @@ final class BoardAnalyzer {
     private static final int[][] AXES = {
             { 1, 0 },
             { 0, 1 },
-            { 1, 1 },
-            { 1, -1 },
     };
 
     private final MyBoard board;
@@ -66,6 +64,10 @@ final class BoardAnalyzer {
 
     int pseudoCornerDiff(Color color) {
         return ownedSquaresDiff(color, SquareKind.PSEUDO_CORNER);
+    }
+
+    int blockAdjacentDiff(Color color) {
+        return ownedSquaresDiff(color, SquareKind.BLOCK_ADJACENT);
     }
 
     int stableDiscDiff(Color color) {
@@ -136,6 +138,12 @@ final class BoardAnalyzer {
             @Override
             boolean matches(MyBoard board, int k) {
                 return board.isPseudoCorner(k);
+            }
+        },
+        BLOCK_ADJACENT {
+            @Override
+            boolean matches(MyBoard board, int k) {
+                return board.isBlockAdjacentBonusSquare(k);
             }
         };
 

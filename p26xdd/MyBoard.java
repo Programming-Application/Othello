@@ -188,9 +188,7 @@ public class MyBoard implements Board, Cloneable {
     }
 
     boolean isCorner(int k) {
-        int row = k / SIZE;
-        int col = k % SIZE;
-        return (row == 0 || row == SIZE - 1) && (col == 0 || col == SIZE - 1);
+        return hasHorizontalOffBoard(k) && hasVerticalOffBoard(k);
     }
 
     boolean isPseudoCorner(int k) {
@@ -198,23 +196,57 @@ public class MyBoard implements Board, Cloneable {
             return false;
         }
 
+        boolean horizontalOffBoard = hasHorizontalOffBoard(k);
+        boolean verticalOffBoard = hasVerticalOffBoard(k);
+        boolean horizontalBlock = hasHorizontalBlock(k);
+        boolean verticalBlock = hasVerticalBlock(k);
+
+        return (horizontalOffBoard && verticalBlock)
+                || (verticalOffBoard && horizontalBlock)
+                || countOrthogonalBlocks(k) >= 2;
+    }
+
+    boolean isBlockAdjacentBonusSquare(int k) {
+        return !isCorner(k) && !isPseudoCorner(k) && countOrthogonalBlocks(k) == 1;
+    }
+
+    private boolean hasHorizontalOffBoard(int k) {
+        int col = k % SIZE;
+        return col == 0 || col == SIZE - 1;
+    }
+
+    private boolean hasVerticalOffBoard(int k) {
+        int row = k / SIZE;
+        return row == 0 || row == SIZE - 1;
+    }
+
+    private boolean hasHorizontalBlock(int k) {
         int row = k / SIZE;
         int col = k % SIZE;
-        int offBoardAnchors = 0;
-        int blockAnchors = 0;
-        int[][] offsets = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+        return isBlockAt(col - 1, row) || isBlockAt(col + 1, row);
+    }
 
+    private boolean hasVerticalBlock(int k) {
+        int row = k / SIZE;
+        int col = k % SIZE;
+        return isBlockAt(col, row - 1) || isBlockAt(col, row + 1);
+    }
+
+    private int countOrthogonalBlocks(int k) {
+        int row = k / SIZE;
+        int col = k % SIZE;
+        int count = 0;
+        int[][] offsets = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
         for (int[] offset : offsets) {
-            int nextCol = col + offset[0];
-            int nextRow = row + offset[1];
-            if (!Move.isValid(nextCol, nextRow)) {
-                offBoardAnchors++;
-            } else if (isBlocked(Move.index(nextCol, nextRow))) {
-                blockAnchors++;
+            if (isBlockAt(col + offset[0], row + offset[1])) {
+                count++;
             }
         }
+        return count;
+    }
 
-        return (offBoardAnchors >= 1 && blockAnchors >= 1) || blockAnchors >= 2;
+    private boolean isBlockAt(int col, int row) {
+        return Move.isValid(col, row) && isBlocked(Move.index(col, row));
     }
 
     boolean isDangerous(int k) {

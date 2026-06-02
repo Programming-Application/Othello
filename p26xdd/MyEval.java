@@ -63,12 +63,14 @@ public class MyEval {
                 + analyzer.discDiff(color) * -8.0f
                 + analyzer.cornerDiff(color) * 250.0f
                 + analyzer.pseudoCornerDiff(color) * 120.0f
+                + analyzer.blockAdjacentDiff(color) * 30.0f
                 + positionValue(board, color) * 2.0f;
     }
 
     private float middleValue(MyBoard board, BoardAnalyzer analyzer, Color color) {
         return analyzer.cornerDiff(color) * 900.0f
                 + analyzer.pseudoCornerDiff(color) * 450.0f
+                + analyzer.blockAdjacentDiff(color) * 90.0f
                 + analyzer.stableDiscDiff(color) * 300.0f
                 + analyzer.mobilityDiff(color) * 80.0f
                 - analyzer.mobility(color.flipped()) * 120.0f
@@ -80,6 +82,7 @@ public class MyEval {
         return analyzer.discDiff(color) * 400.0f
                 + analyzer.cornerDiff(color) * 500.0f
                 + analyzer.pseudoCornerDiff(color) * 200.0f
+                + analyzer.blockAdjacentDiff(color) * 50.0f
                 + analyzer.stableDiscDiff(color) * 150.0f
                 + analyzer.mobilityDiff(color) * 50.0f
                 + positionValue(board, color) * 3.0f;
