@@ -38,6 +38,8 @@ class MyEval {
 
   final int[] W;
   final int cPos, cMob, cFront, cStab;
+  final int[][] CB; // phase別係数 (null なら単一)。CB[phase] = {cPos,cMob,cFront,cStab}
+  final int[] BD;   // phase境界 (空きマス数の降順下限)。empties>=BD[i] の最小iがphase
   final int[] scratch = new int[40]; // 合法手数え用 (プレイヤー毎に独立)
 
   MyEval() {
@@ -54,30 +56,55 @@ class MyEval {
     this.cMob = coeffs[1];
     this.cFront = coeffs[2];
     this.cStab = coeffs[3];
+    this.CB = null;
+    this.BD = null;
+  }
+
+  /** phase別係数版。coeffsByPhase[phase]={cPos,cMob,cFront,cStab}, bounds=空き数の降順下限。*/
+  MyEval(int[] weights, int[][] coeffsByPhase, int[] bounds) {
+    this.W = java.util.Arrays.copyOf(weights, LENGTH);
+    this.cPos = coeffsByPhase[0][0];
+    this.cMob = coeffsByPhase[0][1];
+    this.cFront = coeffsByPhase[0][2];
+    this.cStab = coeffsByPhase[0][3];
+    this.CB = coeffsByPhase;
+    this.BD = bounds;
+  }
+
+  int phaseOf(int empties) {
+    for (int i = 0; i < BD.length; i++)
+      if (empties >= BD[i]) return i;
+    return BD.length;
   }
 
   /** 非終局の評価 (BLACK 視点)。*/
   float value(OurBoard b) {
-    int pos = 0, frontB = 0, frontW = 0;
+    int empties = 0, pos = 0, frontB = 0, frontW = 0;
     for (int k = 0; k < LENGTH; k++) {
       var c = b.get(k);
-      if (c == BLACK) {
+      if (c == NONE) {
+        empties++;
+      } else if (c == BLACK) {
         pos += W[k];
-        if (cFront != 0 && hasEmptyNeighbor(b, k)) frontB++;
+        if (hasEmptyNeighbor(b, k)) frontB++;
       } else if (c == WHITE) {
         pos -= W[k];
-        if (cFront != 0 && hasEmptyNeighbor(b, k)) frontW++;
+        if (hasEmptyNeighbor(b, k)) frontW++;
       }
     }
-    int v = cPos * pos;
-    if (cMob != 0) {
-      int mob = b.genLegal(BLACK, scratch) - b.genLegal(WHITE, scratch);
-      v += cMob * mob;
+    int p0 = cPos, p1 = cMob, p2 = cFront, p3 = cStab;
+    if (CB != null) {
+      int[] co = CB[phaseOf(empties)];
+      p0 = co[0]; p1 = co[1]; p2 = co[2]; p3 = co[3];
     }
-    if (cFront != 0)
-      v += cFront * (frontB - frontW);
-    if (cStab != 0)
-      v += cStab * stableDiff(b);
+    int v = p0 * pos;
+    if (p1 != 0) {
+      int mob = b.genLegal(BLACK, scratch) - b.genLegal(WHITE, scratch);
+      v += p1 * mob;
+    }
+    v += p2 * (frontB - frontW);
+    if (p3 != 0)
+      v += p3 * stableDiff(b);
     return v;
   }
 
@@ -173,7 +200,8 @@ public class OurPlayer extends ap26.Player {
   // --- Phase F: トポロジ(擬似角)対応の種類重みモード ---
   boolean topoMode = false;
   boolean topoReady = false;
-  int[] typeWeights;  // 種類別重み [corner,C,edge,X,interior]
+  boolean richTopo = false; // true なら特徴ベクトルから W を生成 (F1)
+  int[] typeWeights;  // 薄い版=種類別重み[5] / rich版=特徴重み[Topo.NF]
   int[] topoCoeffs;   // 特徴係数 [cPos,cMob,cFront,cStab]
 
   long timeUsedNanos = 0; // このゲームで使った累積思考時間
@@ -202,6 +230,13 @@ public class OurPlayer extends ap26.Player {
     this.fixedDepth = fixedDepth;
   }
 
+  /** F2 用: phase別係数 (coeffsByPhase[phase]={cPos,cMob,cFront,cStab}) + 境界 + 固定深さ。位置重みは固定。*/
+  public OurPlayer(Color color, int[] weights, int[][] coeffsByPhase, int[] bounds, int fixedDepth) {
+    super(MY_NAME, color);
+    this.eval = new MyEval(weights, coeffsByPhase, bounds);
+    this.fixedDepth = fixedDepth;
+  }
+
   /**
    * Phase F 用: トポロジ種類重み [corner,C,edge,X,interior] + 特徴係数 + 固定深さ。
    * 位置重み W は setBoard(=盤確定時) に実際の BLOCK 配置を分類して種類重みから生成する。
@@ -210,6 +245,19 @@ public class OurPlayer extends ap26.Player {
     super(MY_NAME, color);
     this.topoMode = topo;
     this.typeWeights = typeWeights;
+    this.topoCoeffs = coeffs;
+    this.fixedDepth = fixedDepth;
+  }
+
+  /**
+   * Phase F-proper(rich) 用: トポロジ特徴重み (長さ Topo.NF) + 特徴係数 + 固定深さ。
+   * 位置重み W は setBoard で各マスの特徴ベクトルから W[k]=Σ fw·g を計算して生成する。
+   */
+  public OurPlayer(Color color, int[] featWeights, int[] coeffs, int fixedDepth, boolean topo, boolean rich) {
+    super(MY_NAME, color);
+    this.topoMode = topo;
+    this.richTopo = rich;
+    this.typeWeights = featWeights;
     this.topoCoeffs = coeffs;
     this.fixedDepth = fixedDepth;
   }
@@ -223,10 +271,16 @@ public class OurPlayer extends ap26.Player {
       buildTopoEval(b); // 盤が確定したので壁を分類して位置重みを生成
   }
 
-  /** 実際の BLOCK 配置を分類し、種類重みから位置重み W を作って eval を構築する。*/
+  /** 実際の BLOCK 配置を分類し、(種類重み or 特徴重み)から位置重み W を作って eval を構築する。*/
   void buildTopoEval(Board b) {
-    int[] types = Topo.classify(b);
-    int[] w = Topo.weightsFromTypes(types, typeWeights);
+    int[] w;
+    if (richTopo) {
+      int[][] g = Topo.features(b);
+      w = Topo.weightsFromFeatures(g, typeWeights);
+    } else {
+      int[] types = Topo.classify(b);
+      w = Topo.weightsFromTypes(types, typeWeights);
+    }
     this.eval = new MyEval(w, topoCoeffs);
     this.topoReady = true;
   }

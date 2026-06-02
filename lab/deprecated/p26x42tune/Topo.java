@@ -85,4 +85,46 @@ public final class Topo {
       w[k] = (types[k] >= 0) ? typeW[types[k]] : 0;
     return w;
   }
+
+  // ===== rich 版: マスごとの特徴ベクトル (F1) =====
+  /** 特徴数: [corner,C,edge,X,interior, adjBlock, openRays]。最初の5は種類one-hot。*/
+  public static final int NF = 7;
+
+  /** 各マスの特徴ベクトル g[36][NF] を返す。BLOCK マスは全0。*/
+  public static int[][] features(Board b) {
+    int[] t = classify(b);
+    int[][] g = new int[LENGTH][NF];
+    int[][] orth = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}};
+    int[][] all8 = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+    for (int k = 0; k < LENGTH; k++) {
+      if (t[k] < 0) continue; // BLOCK
+      g[k][t[k]] = 1; // 種類 one-hot (0..4)
+      int r = k / SIZE, c = k % SIZE;
+      int adjBlock = 0, openRays = 0;
+      for (int[] o : orth) {
+        int nr = r + o[0], nc = c + o[1];
+        if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && b.get(nr * SIZE + nc) == BLOCK)
+          adjBlock = 1;
+      }
+      for (int[] o : all8) {
+        int nr = r + o[0], nc = c + o[1];
+        if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && b.get(nr * SIZE + nc) != BLOCK)
+          openRays++;
+      }
+      g[k][5] = adjBlock;
+      g[k][6] = openRays;
+    }
+    return g;
+  }
+
+  /** 特徴重み (長さNF) から 36 マスの重みを生成。W[k] = Σ_f fw[f]·g[k][f]。*/
+  public static int[] weightsFromFeatures(int[][] g, int[] fw) {
+    int[] w = new int[LENGTH];
+    for (int k = 0; k < LENGTH; k++) {
+      int s = 0;
+      for (int f = 0; f < NF; f++) s += fw[f] * g[k][f];
+      w[k] = s;
+    }
+    return w;
+  }
 }
