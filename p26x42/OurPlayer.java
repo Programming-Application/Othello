@@ -31,34 +31,23 @@ class MyEval {
   };
   static final int[] CORNERS = {0, 5, 30, 35};
 
-  final int[] scratch = new int[40]; // 合法手数え用
-
-  /** 非終局の評価 (BLACK 視点)。位置 + mobility + frontier + stability。BLOCK 自動考慮。*/
-  float value(OurBoard b) {
-    int pos = 0, frontB = 0, frontW = 0;
-    for (int k = 0; k < LENGTH; k++) {
-      var c = b.get(k);
-      if (c == BLACK) {
-        pos += W[k];
-        if (hasEmptyNeighbor(b, k)) frontB++;
-      } else if (c == WHITE) {
-        pos -= W[k];
-        if (hasEmptyNeighbor(b, k)) frontW++;
-      }
-    }
-    int mob = b.genLegal(BLACK, scratch) - b.genLegal(WHITE, scratch);
-    return CPOS * pos + CMOB * mob + CFRONT * (frontB - frontW) + CSTAB * stableDiff(b);
-  }
-
-  /** k に空き(NONE)隣接があるか (フロンティア判定)。*/
-  boolean hasEmptyNeighbor(OurBoard b, int k) {
-    int[][] dirs = OurBoard.LINES[k];
-    for (int d = 0; d < 8; d++) {
-      int[] line = dirs[d];
-      if (line.length > 0 && b.get(line[0]) == NONE)
-        return true;
-    }
-    return false;
+  /** 非終局の評価 (BLACK 視点)。位置 + mobility + frontier + stability。全てビット演算。整数値。*/
+  int value(OurBoard b) {
+    // 位置: 黒石は +W, 白石は -W (set bit 走査, get() を使わない)
+    int pos = 0;
+    long bb = b.black;
+    while (bb != 0) { int k = Long.numberOfTrailingZeros(bb); bb &= bb - 1; pos += W[k]; }
+    long ww = b.white;
+    while (ww != 0) { int k = Long.numberOfTrailingZeros(ww); ww &= ww - 1; pos -= W[k]; }
+    // frontier: 空きに隣接する自石数 (空きを8方向シフトした和 = 空き隣接マス集合)
+    long e = b.empty();
+    long fm = 0;
+    for (int d = 0; d < 8; d++)
+      fm |= OurBoard.shift(e, OurBoard.DS[d], OurBoard.DM[d]);
+    int front = Long.bitCount(b.black & fm) - Long.bitCount(b.white & fm);
+    // mobility
+    int mob = Long.bitCount(b.legalBits(BLACK)) - Long.bitCount(b.legalBits(WHITE));
+    return CPOS * pos + CMOB * mob + CFRONT * front + CSTAB * stableDiff(b);
   }
 
   /** 角アンカーの辺連結による確定石の概算差 (BLACK - WHITE)。BLOCK 角は自動的に除外。*/
@@ -80,9 +69,9 @@ class MyEval {
     return sb - sw;
   }
 
-  /** 終局の評価。最終石差を支配的なスケールで返す (勝敗・石差を位置評価より優先)。*/
-  float terminal(OurBoard b) {
-    return 1_000_000f * b.score();
+  /** 終局の評価。最終石差を支配的なスケールで返す (勝敗・石差を位置評価より優先)。整数値。*/
+  int terminal(OurBoard b) {
+    return 1_000_000 * b.score();
   }
 }
 
@@ -152,6 +141,18 @@ public class OurPlayer extends ap26.Player {
   final int[] ttVal = new int[TT_SIZE];
   final byte[] ttFlag = new byte[TT_SIZE];
   final byte[] ttMove = new byte[TT_SIZE];
+
+  // --- 中盤探索用 置換表 (深さ付き) ---
+  static final int INF = 1_000_000_000;
+  static final int MT_BITS = 19;
+  static final int MT_SIZE = 1 << MT_BITS;
+  static final int MT_MASK = MT_SIZE - 1;
+  final long[] mtKey = new long[MT_SIZE];
+  final int[] mtVal = new int[MT_SIZE];
+  final byte[] mtDepth = new byte[MT_SIZE];
+  final byte[] mtFlag = new byte[MT_SIZE];
+  final byte[] mtMove = new byte[MT_SIZE];
+  boolean useTtPvs = true; // 検証用: false で素の α-β (TT/PVS無効)
 
   /** 盤面ハッシュ。盤面セルは増分更新済みの b.h、手番は ZSIDE で区別。O(1)。*/
   long hash(OurBoard b, boolean blackToMove) {
@@ -262,18 +263,24 @@ public class OurPlayer extends ap26.Player {
     return best;
   }
 
-  /** ルートの 1 反復。pv (前反復の最善手) を先頭に試す。*/
+  /** ルートの 1 反復。pv (前反復の最善手) を先頭に試す。PVS。*/
   int rootSearch(OurBoard root, int depth, int pv) {
     int n = root.genLegal(BLACK, rootBuf);
     orderStatic(rootBuf, n);
     moveToFront(rootBuf, n, pv);
 
-    float alpha = Float.NEGATIVE_INFINITY;
-    float beta = Float.POSITIVE_INFINITY;
+    int alpha = -INF, beta = INF;
     int best = rootBuf[0];
     for (int i = 0; i < n; i++) {
       OurBoard c = root.placedIndex(rootBuf[i], BLACK);
-      float v = minSearch(c, alpha, beta, depth - 1);
+      int v;
+      if (i == 0 || !useTtPvs) {
+        v = minSearch(c, alpha, beta, depth - 1);
+      } else {
+        v = minSearch(c, alpha, alpha + 1, depth - 1); // null window
+        if (v > alpha && !timeUp)
+          v = minSearch(c, alpha, beta, depth - 1);     // 失敗 → 再探索
+      }
       if (timeUp)
         return best;
       if (v > alpha) {
@@ -307,6 +314,15 @@ public class OurPlayer extends ap26.Player {
       }
     }
     return best;
+  }
+
+  /** 検証用: 中盤探索の値を固定深さで計算 (ttpvs で TT/PVS の有無を切替)。テストフック。*/
+  public int searchValue(OurBoard root, int depth, boolean ttpvs) {
+    this.useTtPvs = ttpvs;
+    this.deadline = Long.MAX_VALUE;
+    this.timeUp = false;
+    java.util.Arrays.fill(mtFlag, (byte) 0); // 比較を汚さないようTTクリア
+    return maxSearch(root, -INF, INF, depth);
   }
 
   /** ベンチ用: BLACK 手番の局面の最終石差(最善応酬)を厳密に計算する。*/
@@ -425,8 +441,8 @@ public class OurPlayer extends ap26.Player {
 
   // ===========================================================================
 
-  // BLACK 手番 (最大化)
-  float maxSearch(OurBoard b, float alpha, float beta, int depthLeft) {
+  // BLACK 手番 (最大化)。整数 α-β + 置換表 + PVS。
+  int maxSearch(OurBoard b, int alpha, int beta, int depthLeft) {
     searchNodes++;
     if ((searchNodes & 1023) == 0 && System.nanoTime() >= deadline)
       timeUp = true;
@@ -437,27 +453,51 @@ public class OurPlayer extends ap26.Player {
     if (depthLeft == 0)
       return eval.value(b);
 
+    final int alpha0 = alpha, beta0 = beta;
+    long h = hash(b, true);
+    int idx = (int) (h & MT_MASK);
+    int ttMv = -1;
+    if (useTtPvs && mtFlag[idx] != 0 && mtKey[idx] == h) {
+      if (mtDepth[idx] >= depthLeft) {
+        int v = mtVal[idx];
+        byte fl = mtFlag[idx];
+        if (fl == TT_EXACT) return v;
+        if (fl == TT_LOWER && v >= beta) return v;
+        if (fl == TT_UPPER && v <= alpha) return v;
+      }
+      ttMv = mtMove[idx];
+    }
+
     int[] mv = moveBuf[depthLeft];
     int n = b.genLegal(BLACK, mv);
     if (n == 0)
       return minSearch(b, alpha, beta, depthLeft - 1); // パス
     orderStatic(mv, n);
+    if (ttMv >= 0) moveToFront(mv, n, ttMv);
 
+    int best = -INF, bestMove = mv[0];
     for (int i = 0; i < n; i++) {
       OurBoard c = b.placedIndex(mv[i], BLACK);
-      float v = minSearch(c, alpha, beta, depthLeft - 1);
-      if (v > alpha)
-        alpha = v;
-      if (alpha >= beta)
-        break;
+      int v;
+      if (i == 0 || !useTtPvs) {
+        v = minSearch(c, alpha, beta, depthLeft - 1);
+      } else {
+        v = minSearch(c, alpha, alpha + 1, depthLeft - 1);
+        if (v > alpha && v < beta && !timeUp)
+          v = minSearch(c, alpha, beta, depthLeft - 1);
+      }
       if (timeUp)
-        break;
+        return best > -INF ? best : alpha;
+      if (v > best) { best = v; bestMove = mv[i]; }
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
     }
-    return alpha;
+    storeMid(idx, h, best, alpha0, beta0, bestMove, depthLeft);
+    return best;
   }
 
-  // WHITE 手番 (最小化)
-  float minSearch(OurBoard b, float alpha, float beta, int depthLeft) {
+  // WHITE 手番 (最小化)。
+  int minSearch(OurBoard b, int alpha, int beta, int depthLeft) {
     searchNodes++;
     if ((searchNodes & 1023) == 0 && System.nanoTime() >= deadline)
       timeUp = true;
@@ -468,23 +508,60 @@ public class OurPlayer extends ap26.Player {
     if (depthLeft == 0)
       return eval.value(b);
 
+    final int alpha0 = alpha, beta0 = beta;
+    long h = hash(b, false);
+    int idx = (int) (h & MT_MASK);
+    int ttMv = -1;
+    if (useTtPvs && mtFlag[idx] != 0 && mtKey[idx] == h) {
+      if (mtDepth[idx] >= depthLeft) {
+        int v = mtVal[idx];
+        byte fl = mtFlag[idx];
+        if (fl == TT_EXACT) return v;
+        if (fl == TT_LOWER && v >= beta) return v;
+        if (fl == TT_UPPER && v <= alpha) return v;
+      }
+      ttMv = mtMove[idx];
+    }
+
     int[] mv = moveBuf[depthLeft];
     int n = b.genLegal(WHITE, mv);
     if (n == 0)
       return maxSearch(b, alpha, beta, depthLeft - 1); // パス
     orderStatic(mv, n);
+    if (ttMv >= 0) moveToFront(mv, n, ttMv);
 
+    int best = INF, bestMove = mv[0];
     for (int i = 0; i < n; i++) {
       OurBoard c = b.placedIndex(mv[i], WHITE);
-      float v = maxSearch(c, alpha, beta, depthLeft - 1);
-      if (v < beta)
-        beta = v;
-      if (alpha >= beta)
-        break;
+      int v;
+      if (i == 0 || !useTtPvs) {
+        v = maxSearch(c, alpha, beta, depthLeft - 1);
+      } else {
+        v = maxSearch(c, beta - 1, beta, depthLeft - 1);
+        if (v < beta && v > alpha && !timeUp)
+          v = maxSearch(c, alpha, beta, depthLeft - 1);
+      }
       if (timeUp)
-        break;
+        return best < INF ? best : beta;
+      if (v < best) { best = v; bestMove = mv[i]; }
+      if (best < beta) beta = best;
+      if (alpha >= beta) break;
     }
-    return beta;
+    storeMid(idx, h, best, alpha0, beta0, bestMove, depthLeft);
+    return best;
+  }
+
+  /** 中盤TTへ格納 (深さ優先置換)。元窓 [alpha0,beta0] で EXACT/LOWER/UPPER を決定。*/
+  void storeMid(int idx, long h, int best, int alpha0, int beta0, int bestMove, int depth) {
+    if (!useTtPvs || timeUp) return;
+    byte fl = best <= alpha0 ? TT_UPPER : best >= beta0 ? TT_LOWER : TT_EXACT;
+    if (mtFlag[idx] == 0 || mtKey[idx] == h || depth >= mtDepth[idx]) {
+      mtKey[idx] = h;
+      mtVal[idx] = best;
+      mtDepth[idx] = (byte) depth;
+      mtFlag[idx] = fl;
+      mtMove[idx] = (byte) bestMove;
+    }
   }
 
   /** 先頭 n 個を PRIO 降順に挿入ソート (n は小さいので軽い)。*/
