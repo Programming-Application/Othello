@@ -20,6 +20,8 @@ public class OurPlayer extends Player {
     private final int depthLimit;
     private MyBoard board;
     private Move move;
+    private long gameStartedAtNanos;
+    private long accumulatedThinkNanos;
 
     public OurPlayer(Color color) {
         this(MY_NAME, color, new MyEval(), DEFAULT_DEPTH_LIMIT);
@@ -30,21 +32,39 @@ public class OurPlayer extends Player {
         this.eval = eval;
         this.depthLimit = depthLimit;
         this.board = new MyBoard();
+        resetTimeState();
     }
 
     @Override
     public void setBoard(Board board) {
+        loadInitialBoard(board);
+        resetTimeState();
+    }
+
+    private void loadInitialBoard(Board board) {
         this.board = MyBoard.copyOf(board);
         super.setBoard(this.board);
     }
 
+    private void syncBoard(Board board) {
+        this.board.syncCurrentPosition(board);
+        super.setBoard(this.board);
+    }
+
+    private void resetTimeState() {
+        this.gameStartedAtNanos = System.nanoTime();
+        this.accumulatedThinkNanos = 0L;
+    }
+
     @Override
     public Move think(Board board) {
-        setBoard(board);
+        long startedAtNanos = System.nanoTime();
+        syncBoard(board);
 
         List<Integer> legalIndexes = this.board.findNoPassLegalIndexes(getColor());
         if (legalIndexes.isEmpty()) {
             this.move = Move.ofPass(getColor());
+            this.accumulatedThinkNanos += System.nanoTime() - startedAtNanos;
             return this.move;
         }
 
@@ -63,6 +83,7 @@ public class OurPlayer extends Player {
         this.move = selected;
         this.board = this.board.placed(this.move);
         super.setBoard(this.board);
+        this.accumulatedThinkNanos += System.nanoTime() - startedAtNanos;
         return this.move;
     }
 

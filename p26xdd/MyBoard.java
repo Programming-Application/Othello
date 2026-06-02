@@ -19,18 +19,26 @@ import static ap26.Color.WHITE;
 
 public class MyBoard implements Board, Cloneable {
     private final Color[] board;
+    private final Color[] initialBoard;
+    private final boolean[] blocked;
     private Move move;
     private String boardId;
 
     public MyBoard() {
         this.board = new Color[LENGTH];
+        this.initialBoard = new Color[LENGTH];
+        this.blocked = new boolean[LENGTH];
         Arrays.fill(this.board, NONE);
+        Arrays.fill(this.initialBoard, NONE);
         this.move = Move.ofPass(NONE);
         init();
+        recordInitialPosition();
     }
 
-    private MyBoard(Color[] board, Move move, String boardId) {
+    private MyBoard(Color[] board, Color[] initialBoard, boolean[] blocked, Move move, String boardId) {
         this.board = Arrays.copyOf(board, board.length);
+        this.initialBoard = Arrays.copyOf(initialBoard, initialBoard.length);
+        this.blocked = Arrays.copyOf(blocked, blocked.length);
         this.move = move;
         this.boardId = boardId;
     }
@@ -43,10 +51,34 @@ public class MyBoard implements Board, Cloneable {
 
     public void copyFrom(Board source) {
         for (int k = 0; k < LENGTH; k++) {
-            set(k, source.get(k));
+            Color color = source.get(k);
+            this.board[k] = color;
+            this.initialBoard[k] = color;
+            this.blocked[k] = color == BLOCK;
         }
         this.move = source.getMove();
         this.boardId = source.getBoardId();
+    }
+
+    public void syncCurrentPosition(Board source) {
+        for (int k = 0; k < LENGTH; k++) {
+            Color color = source.get(k);
+            if (this.blocked[k] || color == BLOCK) {
+                this.board[k] = BLOCK;
+                this.blocked[k] = true;
+            } else {
+                this.board[k] = color;
+            }
+        }
+        this.move = source.getMove();
+        this.boardId = source.getBoardId();
+    }
+
+    private void recordInitialPosition() {
+        for (int k = 0; k < LENGTH; k++) {
+            this.initialBoard[k] = this.board[k];
+            this.blocked[k] = this.board[k] == BLOCK;
+        }
     }
 
     private void init() {
@@ -73,6 +105,14 @@ public class MyBoard implements Board, Cloneable {
 
     public void set(int k, Color color) {
         this.board[k] = color;
+    }
+
+    boolean isBlocked(int k) {
+        return this.blocked[k];
+    }
+
+    Color getInitial(int k) {
+        return this.initialBoard[k];
     }
 
     @Override
@@ -191,6 +231,10 @@ public class MyBoard implements Board, Cloneable {
         }
 
         int index = move.getIndex();
+        if (next.isBlocked(index)) {
+            return next;
+        }
+
         Color color = move.getColor();
         for (List<Integer> line : next.lines(index)) {
             for (Move flippable : next.outflanked(line, color)) {
@@ -213,7 +257,7 @@ public class MyBoard implements Board, Cloneable {
 
     @Override
     public MyBoard clone() {
-        return new MyBoard(this.board, this.move, this.boardId);
+        return new MyBoard(this.board, this.initialBoard, this.blocked, this.move, this.boardId);
     }
 
     @Override
