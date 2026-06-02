@@ -6,7 +6,6 @@ import ap26.Move;
 import java.util.List;
 
 final class Search {
-    private static final float WIN_SCORE = 1_000_000.0f;
     private static final int ENDGAME_EMPTY_THRESHOLD = 10;
     private static final int MAX_SEARCH_DEPTH = 36;
 
@@ -95,14 +94,7 @@ final class Search {
     }
 
     private float terminalValue(MyBoard board, Color color) {
-        int score = board.score() * color.getValue();
-        if (score > 0) {
-            return WIN_SCORE + score;
-        }
-        if (score < 0) {
-            return -WIN_SCORE + score;
-        }
-        return 0.0f;
+        return MyEval.terminalValue(board.analyzer(), color);
     }
 
     private int maxDepth(int emptySquares) {

@@ -183,6 +183,10 @@ public class MyBoard implements Board, Cloneable {
         return count(NONE);
     }
 
+    BoardAnalyzer analyzer() {
+        return new BoardAnalyzer(this);
+    }
+
     boolean isCorner(int k) {
         int row = k / SIZE;
         int col = k % SIZE;
@@ -231,19 +235,7 @@ public class MyBoard implements Board, Cloneable {
     }
 
     int countStableCandidates(Color color) {
-        int count = 0;
-        for (int k = 0; k < LENGTH; k++) {
-            if (get(k) == color && (isCorner(k) || isPseudoCorner(k) || isEdge(k))) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private boolean isEdge(int k) {
-        int row = k / SIZE;
-        int col = k % SIZE;
-        return row == 0 || row == SIZE - 1 || col == 0 || col == SIZE - 1;
+        return analyzer().stableDiscs(color);
     }
 
     @Override
