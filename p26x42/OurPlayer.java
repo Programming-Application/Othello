@@ -59,6 +59,12 @@ public class OurPlayer extends ap26.Player {
   /** 1 ゲームの持ち時間 (本番 60s)。安全マージンを見て 58s を上限として配分する。*/
   static final long TOTAL_NANOS = 58_000_000_000L;
 
+  /** 空きマス数がこれ以下なら終局まで厳密に読み切る (完全読み)。計測で調整。*/
+  static int ENDGAME_THRESHOLD = 16;
+
+  /** 終盤完全読み手に与える持ち時間の上限 (この手で勝敗が決まるため厚めに配分)。*/
+  static final long ENDGAME_BUDGET_CAP_NANOS = 6_000_000_000L;
+
   // --- 計測/ベンチ用 (提出時は無害な診断フィールド) ---
   public static long searchNodes = 0;     // 探索ノード総数
   public static int lastReachedDepth = 0; // 直近の手で到達した探索深さ
@@ -122,6 +128,12 @@ public class OurPlayer extends ap26.Player {
       } else {
         long remaining = TOTAL_NANOS - timeUsedNanos;
         budget = computeBudget(remaining, empties);
+        if (empties <= ENDGAME_THRESHOLD) {
+          // 終盤完全読みには厚めの持ち時間を割く (残りの半分か上限のいずれか小さい方)
+          long eg = Math.min(remaining / 2, ENDGAME_BUDGET_CAP_NANOS);
+          if (eg > budget)
+            budget = eg;
+        }
       }
       this.deadline = System.nanoTime() + budget;
 
@@ -149,12 +161,25 @@ public class OurPlayer extends ap26.Player {
     return budget;
   }
 
-  /** 反復深化。完了した最深の最善手を返す。*/
+  /** 反復深化。終盤は完全読みに切替。完了した最深の最善手を返す。*/
   int searchBestMove(OurBoard root, int empties) {
     int n0 = root.genLegal(BLACK, rootBuf);
     orderStatic(rootBuf, n0);
     int best = rootBuf[0];
     lastReachedDepth = 0;
+
+    // 終盤完全読み: 空きマスが少なければ終局まで厳密に最終石差を最大化
+    if (empties <= ENDGAME_THRESHOLD) {
+      timeUp = false;
+      int mv = solveExactRoot(root, best);
+      if (!timeUp && mv >= 0) {
+        lastReachedDepth = empties;
+        if (empties > maxReachedDepth)
+          maxReachedDepth = empties;
+        return mv;
+      }
+      // 時間切れ (しきい値が大きすぎた場合の保険) → 通常 ID にフォールバック
+    }
 
     for (int depth = 1; depth <= empties; depth++) {
       timeUp = false;
@@ -192,6 +217,104 @@ public class OurPlayer extends ap26.Player {
     }
     return best;
   }
+
+  // ===================== 終盤完全読み (整数 α-β, 最終石差) =====================
+
+  /** 完全読みルート: 最善手のマス番号を返す (BLACK 視点)。時間切れなら -1。*/
+  int solveExactRoot(OurBoard root, int pv) {
+    int n = root.genLegal(BLACK, rootBuf);
+    orderStatic(rootBuf, n);
+    moveToFront(rootBuf, n, pv);
+
+    int alpha = -1000, beta = 1000;
+    int best = rootBuf[0], bestVal = -100000;
+    for (int i = 0; i < n; i++) {
+      OurBoard c = root.placedIndex(rootBuf[i], BLACK);
+      int v = solveMin(c, alpha, beta, 1);
+      if (timeUp)
+        return -1;
+      if (v > bestVal) {
+        bestVal = v;
+        best = rootBuf[i];
+        if (v > alpha)
+          alpha = v;
+      }
+    }
+    return best;
+  }
+
+  /** ベンチ用: BLACK 手番の局面の最終石差(最善応酬)を厳密に計算する。*/
+  public int benchSolve(OurBoard root) {
+    this.deadline = Long.MAX_VALUE;
+    this.timeUp = false;
+    return solveMax(root, -1000, 1000, 0);
+  }
+
+  // BLACK 手番: 最終石差 (BLACK-WHITE) を最大化
+  int solveMax(OurBoard b, int alpha, int beta, int ply) {
+    searchNodes++;
+    if ((searchNodes & 1023) == 0 && System.nanoTime() >= deadline)
+      timeUp = true;
+    if (timeUp)
+      return alpha;
+    if (b.isEnd())
+      return b.score();
+
+    int[] mv = moveBuf[ply];
+    int n = b.genLegal(BLACK, mv);
+    if (n == 0)
+      return solveMin(b, alpha, beta, ply + 1); // パス
+    orderStatic(mv, n);
+
+    int best = -100000;
+    for (int i = 0; i < n; i++) {
+      OurBoard c = b.placedIndex(mv[i], BLACK);
+      int v = solveMin(c, alpha, beta, ply + 1);
+      if (timeUp)
+        return best;
+      if (v > best)
+        best = v;
+      if (best > alpha)
+        alpha = best;
+      if (alpha >= beta)
+        break;
+    }
+    return best;
+  }
+
+  // WHITE 手番: 最終石差を最小化
+  int solveMin(OurBoard b, int alpha, int beta, int ply) {
+    searchNodes++;
+    if ((searchNodes & 1023) == 0 && System.nanoTime() >= deadline)
+      timeUp = true;
+    if (timeUp)
+      return beta;
+    if (b.isEnd())
+      return b.score();
+
+    int[] mv = moveBuf[ply];
+    int n = b.genLegal(WHITE, mv);
+    if (n == 0)
+      return solveMax(b, alpha, beta, ply + 1); // パス
+    orderStatic(mv, n);
+
+    int best = 100000;
+    for (int i = 0; i < n; i++) {
+      OurBoard c = b.placedIndex(mv[i], WHITE);
+      int v = solveMax(c, alpha, beta, ply + 1);
+      if (timeUp)
+        return best;
+      if (v < best)
+        best = v;
+      if (best < beta)
+        beta = best;
+      if (alpha >= beta)
+        break;
+    }
+    return best;
+  }
+
+  // ===========================================================================
 
   // BLACK 手番 (最大化)
   float maxSearch(OurBoard b, float alpha, float beta, int depthLeft) {
