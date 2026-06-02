@@ -15,6 +15,7 @@ import static ap26.Color.WHITE;
 public class OurPlayer extends Player {
     private static final String MY_NAME = "26dd";
     private static final int DEFAULT_DEPTH_LIMIT = 4;
+    private static final boolean DEBUG_SYNC = Boolean.getBoolean("p26xdd.debugSync");
 
     private final MyEval eval;
     private final int depthLimit;
@@ -47,8 +48,18 @@ public class OurPlayer extends Player {
     }
 
     private void syncBoard(Board board) {
-        this.board.syncCurrentPosition(board);
+        this.board.syncLastMove(board);
         super.setBoard(this.board);
+        verifySynchronized(board, "opponent move");
+    }
+
+    private void verifySynchronized(Board externalBoard, String phase) {
+        if (!DEBUG_SYNC || this.board.hasSameState(externalBoard)) {
+            return;
+        }
+
+        System.err.println("[p26xdd] board sync mismatch after " + phase
+                + " (" + this.board.firstDifference(externalBoard) + ")");
     }
 
     private void resetTimeState() {
@@ -64,6 +75,11 @@ public class OurPlayer extends Player {
         List<Integer> legalIndexes = this.board.findNoPassLegalIndexes(getColor());
         if (legalIndexes.isEmpty()) {
             this.move = Move.ofPass(getColor());
+            this.board.applyMove(this.move);
+            super.setBoard(this.board);
+            if (DEBUG_SYNC) {
+                verifySynchronized(board.placed(this.move), "own pass");
+            }
             this.accumulatedThinkNanos += System.nanoTime() - startedAtNanos;
             return this.move;
         }
@@ -83,6 +99,9 @@ public class OurPlayer extends Player {
         this.move = selected;
         this.board = this.board.placed(this.move);
         super.setBoard(this.board);
+        if (DEBUG_SYNC) {
+            verifySynchronized(board.placed(this.move), "own move");
+        }
         this.accumulatedThinkNanos += System.nanoTime() - startedAtNanos;
         return this.move;
     }

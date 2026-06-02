@@ -74,6 +74,57 @@ public class MyBoard implements Board, Cloneable {
         this.boardId = source.getBoardId();
     }
 
+    public void syncLastMove(Board source) {
+        applyMove(source.getMove());
+        this.boardId = source.getBoardId();
+    }
+
+    public void applyMove(Move move) {
+        this.move = move;
+
+        if (!move.isLegal() || move.isPass() || move.isNone()) {
+            return;
+        }
+
+        int index = move.getIndex();
+        if (isBlocked(index)) {
+            return;
+        }
+
+        Color color = move.getColor();
+        for (List<Integer> line : lines(index)) {
+            for (Move flippable : outflanked(line, color)) {
+                this.board[flippable.getIndex()] = color;
+            }
+        }
+        set(index, color);
+    }
+
+    public boolean hasSamePosition(Board source) {
+        for (int k = 0; k < LENGTH; k++) {
+            if (this.board[k] != source.get(k)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean hasSameState(Board source) {
+        return this.move.equals(source.getMove()) && hasSamePosition(source);
+    }
+
+    public String firstDifference(Board source) {
+        if (!this.move.equals(source.getMove())) {
+            return "move: internal=" + this.move + ", external=" + source.getMove();
+        }
+        for (int k = 0; k < LENGTH; k++) {
+            if (this.board[k] != source.get(k)) {
+                return Move.toIndexString(k) + ": internal=" + this.board[k] + ", external=" + source.get(k);
+            }
+        }
+        return "none";
+    }
+
     private void recordInitialPosition() {
         for (int k = 0; k < LENGTH; k++) {
             this.initialBoard[k] = this.board[k];
