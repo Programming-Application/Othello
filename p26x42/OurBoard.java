@@ -305,6 +305,11 @@ public class OurBoard implements Board, Cloneable {
     return nb;
   }
 
+  /** 盤面セルの Zobrist ハッシュ (置換表/局面集合のキー用)。*/
+  public long cellHash() {
+    return this.h;
+  }
+
   /** h を盤面から作り直す。*/
   void recomputeHash() {
     long x = 0;

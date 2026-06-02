@@ -15,8 +15,15 @@ public class EndBench42 {
     static Random rnd = new Random(12345);
 
     public static void main(String[] args) {
+        // 引数: arg0=カンマ区切りの空き数 (例 "22"), arg1=サンプル数
         int[] targets = {10, 12, 14, 16, 18, 20};
         int samples = 12;
+        if (args.length > 0) {
+            String[] ps = args[0].split(",");
+            targets = new int[ps.length];
+            for (int i = 0; i < ps.length; i++) targets[i] = Integer.parseInt(ps[i].trim());
+        }
+        if (args.length > 1) samples = Integer.parseInt(args[1]);
         OurPlayer solver = new OurPlayer(BLACK);
 
         System.err.printf("%-8s %-8s %-14s %-14s %-12s%n", "empties", "samples", "avgTime(ms)", "maxTime(ms)", "avgNodes");
