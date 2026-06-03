@@ -13,9 +13,11 @@ public class OfflineSolve {
   public static void main(String[] args) {
     int[] blocks = parse(args.length > 0 ? args[0] : "0,5,30"); // 既定: a1,f1,a6 (3-block)
     long budgetSec = args.length > 1 ? Long.parseLong(args[1]) : 600;
+    OurPlayer.TT_BITS = args.length > 2 ? Integer.parseInt(args[2]) : 20; // 終盤TTサイズ(オフラインは拡大)
 
     OurBoard start = new OurBoard();
     for (int k : blocks) start.set(k, BLOCK);
+    System.err.printf("TT_BITS=%d (%,d entries)%n", OurPlayer.TT_BITS, 1 << OurPlayer.TT_BITS);
     int empties = start.count(NONE);
     System.err.printf("config blocks=%s  empties=%d  budget=%ds%n",
         java.util.Arrays.toString(blocks), empties, budgetSec);
