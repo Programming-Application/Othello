@@ -105,18 +105,28 @@ public class OurPlayer extends ap26.Player {
    * 勝ち>引分>負け の手を選ぶ (石差exactは≤20で行う贅沢品)。持続TT利用・時間内に
    * 証明できなければヒューリスティック探索へフォールバック。
    *
-   * <p>22 に設定 (調査 Step 5e): 標準盤200サンプル実測で 22空きWLD は avg2.1s/p95 7.3s/max29.7s で
-   * ほぼ予算内に証明できるが、24空きは p90~37s・~4% がタイムアウトし、15s 予算では大半が証明前に
-   * フォールバック＝予算を無駄打ちしていた。信頼して毎手解ける上限が 22 なのでそこに揃える
-   * (23〜24空きは通常のヒューリスティック探索に任せ、WLDの徒爾な試行を避ける)。
+   * <p>24 に設定 (Step 5f, A/B実測): 実戦到達の24空きWLDは avg7.2s/p90 20.2s で 25s予算なら97%解ける
+   * (以前の「24は危険」はランダムプレイアウトの歪な局面の測り誤り)。余剰時間(エンジンは58s中~20sしか
+   * 使わない)を終盤移行に回し、cap25s + 序盤cap2s と併せて新スケジュールとして A/B したところ、
+   * 現状(thr22/cap15s)に head-to-head で W22 L8 (+14)、かつ全敗が「24空きで既に理論負け」=不可避だった。
    */
-  public static int WLD_THRESHOLD = 22;
+  public static int WLD_THRESHOLD = 24;
 
   /**
-   * 終盤完全読み手に与える持ち時間の上限。終盤移行手は「そこから完全プレイで勝敗が決まる」
-   * 最重要手で、かつ通常は持ち時間に大きな余裕があるため厚めに配分する (E=20 max ~12s に対応)。
+   * 終盤(WLD/完全読み)手の持ち時間上限。エンジンは持ち時間を大幅に余すので、最重要の終盤移行手に
+   * 厚く配分する。25s に設定: 24空きWLDが実戦97%この範囲で解ける (max~24s)。残りは remaining/2 でガード、
+   * deadline で 60s 超過=即時負けは防止。
    */
-  static final long ENDGAME_BUDGET_CAP_NANOS = 15_000_000_000L;
+  static final long ENDGAME_BUDGET_CAP_NANOS = 25_000_000_000L;
+
+  /** 序盤(空き>iWldThr)の1手予算上限。序盤は深さが飽和し手が変わらないので時間を削り終盤へ回す。*/
+  static final long OPENING_BUDGET_CAP_NANOS = 2_000_000_000L;
+
+  // インスタンス単位で上書き可能なスケジュール設定 (A/B計測用。既定は上記 static と同値)。
+  public int iEndThr = ENDGAME_THRESHOLD;            // exact 完全読みしきい値
+  public int iWldThr = WLD_THRESHOLD;                // WLD 証明しきい値
+  public long iEgCap = ENDGAME_BUDGET_CAP_NANOS;     // 終盤手の持ち時間上限
+  public long iOpenCap = OPENING_BUDGET_CAP_NANOS;   // >0: 空き>iWldThr の1手予算上限
 
   // --- 計測/ベンチ用 (提出時は無害な診断フィールド) ---
   public static long searchNodes = 0;     // 探索ノード総数
@@ -143,6 +153,7 @@ public class OurPlayer extends ap26.Player {
   long timeUsedNanos = 0; // このゲームで使った累積思考時間
   long deadline = 0;      // 現在の手の打ち切り時刻 (nanoTime)
   boolean timeUp = false;
+  int wldRootValue = 0;   // 直近 wldRoot の root WLD 値 (+1勝/0分/-1負)。負けなら α-β で粘る判断に使う
 
   // 深さごとの合法手バッファ (アロケーション回避)。index = depthLeft
   // 第1次元は再帰の深さ(ply)。終盤ソルバの ply はパスでも増えるため、着手数+パス数の最悪
@@ -229,11 +240,13 @@ public class OurPlayer extends ap26.Player {
       } else {
         long remaining = TOTAL_NANOS - timeUsedNanos;
         budget = computeBudget(remaining, empties);
-        if (empties <= WLD_THRESHOLD) {
+        if (empties <= iWldThr) {
           // 完全読み/WLD証明には厚めの持ち時間を割く (残りの半分か上限のいずれか小さい方)
-          long eg = Math.min(remaining / 2, ENDGAME_BUDGET_CAP_NANOS);
+          long eg = Math.min(remaining / 2, iEgCap);
           if (eg > budget)
             budget = eg;
+        } else if (iOpenCap > 0 && budget > iOpenCap) {
+          budget = iOpenCap; // 序盤は深さが飽和しているので時間を削り終盤へ回す
         }
       }
       this.deadline = System.nanoTime() + budget;
@@ -270,7 +283,7 @@ public class OurPlayer extends ap26.Player {
     lastReachedDepth = 0;
 
     // 終盤完全読み: 空きマスが少なければ終局まで厳密に最終石差を最大化
-    if (empties <= ENDGAME_THRESHOLD) {
+    if (empties <= iEndThr) {
       timeUp = false;
       int mv = solveExactRoot(root, best);
       if (!timeUp && mv >= 0) {
@@ -280,18 +293,23 @@ public class OurPlayer extends ap26.Player {
         return mv;
       }
       endgameFallback++; // 期限切れ (しきい値が大きすぎた場合の保険) → 通常 ID にフォールバック
-    } else if (empties <= WLD_THRESHOLD) {
+    } else if (empties <= iWldThr) {
       // WLD 証明ゾーン: 勝敗のみ狭窓で証明し win>draw>loss の手を選ぶ (持続TT利用)
       timeUp = false;
       int mv = wldRoot(root);
       if (!timeUp && mv >= 0) {
         wldProven++;
-        lastReachedDepth = empties;
-        if (empties > maxReachedDepth)
-          maxReachedDepth = empties;
-        return mv;
+        if (wldRootValue >= 0) { // 勝ち/引分が証明できた → その手を採用
+          lastReachedDepth = empties;
+          if (empties > maxReachedDepth)
+            maxReachedDepth = empties;
+          return mv;
+        }
+        // 理論負け: wldRoot の機械的な手でなく、下の α-β(eval) で最も粘る手を選ぶ
+        // (完全プレイ相手には結果同じ=neutral、不完全相手には相手のミスを誘いやすい)。
+      } else {
+        wldFallback++; // 時間内に証明できず → ヒューリスティック ID へ
       }
-      wldFallback++; // 時間内に証明できず → ヒューリスティック ID へ
     }
 
     for (int depth = 1; depth <= empties; depth++) {
@@ -394,6 +412,7 @@ public class OurPlayer extends ap26.Player {
       if (alpha >= beta)
         break; // 勝ちを確認 → 打切り
     }
+    wldRootValue = best; // +1勝/0分/-1負(全手敗)。負けなら呼び側で α-β に切替
     return bestMove;
   }
 
