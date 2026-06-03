@@ -96,23 +96,44 @@ public class OurBoard implements Board, Cloneable {
     return ~(black | white | blockMask) & FULL;
   }
 
+  // ===== 8方向を定数シフトで展開 (探索ホットパス) =====
+  // shift() のメソッド呼出・s>0 の分岐・DS[]/DM[] の配列参照を排除するため、
+  // legalBits/flipsAt は方向別ヘルパを直接 8 回呼ぶ。'P'=左シフト(s>0), 'N'=右シフト。
+  // 各シフト結果は必ず相手石 o / 空き e / 自石 p と AND するので、上位ビットの
+  // 回り込みは自然に消える (legal 系は &FULL 不要; flip の左シフトは run を盤外に
+  // 漏らさないため &FULL を残す)。
+
   /** 色 color の合法手ビット集合。*/
   long legalBits(Color color) {
     long p = (color == BLACK) ? black : white;
     long o = (color == BLACK) ? white : black;
     long e = empty();
-    long moves = 0;
-    for (int d = 0; d < 8; d++) {
-      int s = DS[d];
-      long m = DM[d];
-      long t = shift(p, s, m) & o;
-      t |= shift(t, s, m) & o;
-      t |= shift(t, s, m) & o;
-      t |= shift(t, s, m) & o;
-      t |= shift(t, s, m) & o; // 6マス幅: 相手連続は最大4 → 余裕を見て4回伸長
-      moves |= shift(t, s, m) & e;
-    }
-    return moves;
+    return legalDirP(p, o, e, 1, ~COL5)         // E
+         | legalDirN(p, o, e, 1, ~COL0)         // W
+         | legalDirP(p, o, e, SIZE, FULL)       // S
+         | legalDirN(p, o, e, SIZE, FULL)       // N
+         | legalDirP(p, o, e, SIZE + 1, ~COL5)  // SE
+         | legalDirP(p, o, e, SIZE - 1, ~COL0)  // SW
+         | legalDirN(p, o, e, SIZE - 1, ~COL5)  // NE
+         | legalDirN(p, o, e, SIZE + 1, ~COL0); // NW
+  }
+
+  private static long legalDirP(long p, long o, long e, int s, long m) {
+    long t = ((p & m) << s) & o;
+    t |= ((t & m) << s) & o;
+    t |= ((t & m) << s) & o;
+    t |= ((t & m) << s) & o;
+    t |= ((t & m) << s) & o; // 相手連続は最大4 → 余裕を見て5回
+    return ((t & m) << s) & e;
+  }
+
+  private static long legalDirN(long p, long o, long e, int s, long m) {
+    long t = ((p & m) >>> s) & o;
+    t |= ((t & m) >>> s) & o;
+    t |= ((t & m) >>> s) & o;
+    t |= ((t & m) >>> s) & o;
+    t |= ((t & m) >>> s) & o;
+    return ((t & m) >>> s) & e;
   }
 
   /** マス k に color を置いたとき裏返るビット集合。*/
@@ -120,20 +141,32 @@ public class OurBoard implements Board, Cloneable {
     long mv = 1L << k;
     long p = (color == BLACK) ? black : white;
     long o = (color == BLACK) ? white : black;
-    long flips = 0;
-    for (int d = 0; d < 8; d++) {
-      int s = DS[d];
-      long m = DM[d];
-      long run = 0;
-      long cur = shift(mv, s, m);
-      for (int i = 0; i < 5 && (cur & o) != 0; i++) {
-        run |= cur;
-        cur = shift(cur, s, m);
-      }
-      if ((cur & p) != 0)
-        flips |= run; // 自石で挟めた方向のみ確定
-    }
-    return flips;
+    return flipDirP(mv, o, p, 1, ~COL5)         // E
+         | flipDirN(mv, o, p, 1, ~COL0)         // W
+         | flipDirP(mv, o, p, SIZE, FULL)       // S
+         | flipDirN(mv, o, p, SIZE, FULL)       // N
+         | flipDirP(mv, o, p, SIZE + 1, ~COL5)  // SE
+         | flipDirP(mv, o, p, SIZE - 1, ~COL0)  // SW
+         | flipDirN(mv, o, p, SIZE - 1, ~COL5)  // NE
+         | flipDirN(mv, o, p, SIZE + 1, ~COL0); // NW
+  }
+
+  private static long flipDirP(long mv, long o, long p, int s, long m) {
+    long cur = ((mv & m) << s) & FULL;
+    if ((cur & o) == 0) return 0; // 隣が相手石でなければ裏返し無し
+    long run = cur;
+    cur = ((cur & m) << s) & FULL;
+    while ((cur & o) != 0) { run |= cur; cur = ((cur & m) << s) & FULL; }
+    return (cur & p) != 0 ? run : 0; // 自石で挟めた時のみ確定
+  }
+
+  private static long flipDirN(long mv, long o, long p, int s, long m) {
+    long cur = (mv & m) >>> s;
+    if ((cur & o) == 0) return 0;
+    long run = cur;
+    cur = (cur & m) >>> s;
+    while ((cur & o) != 0) { run |= cur; cur = (cur & m) >>> s; }
+    return (cur & p) != 0 ? run : 0;
   }
 
   public Color get(int k) {
@@ -207,10 +240,13 @@ public class OurBoard implements Board, Cloneable {
 
   public int score() {
     int bs = Long.bitCount(black), ws = Long.bitCount(white);
-    int ns = LENGTH - bs - ws - Long.bitCount(blockMask);
     int score = bs - ws;
-    if (bs == 0 || ws == 0)
+    if (bs == 0 || ws == 0) {
+      // 全滅時のみ空きを勝者に加算。bitCount(blockMask) はこの稀なパスでだけ計算する
+      // (終局葉は探索ホットパスなので、通常局面で無駄な bitCount を省く)。
+      int ns = LENGTH - bs - ws - Long.bitCount(blockMask);
       score += Integer.signum(score) * ns;
+    }
     return score;
   }
 
@@ -249,7 +285,12 @@ public class OurBoard implements Board, Cloneable {
 
   /** 合法手のマス番号を out に詰めて個数を返す (アロケーションなし、探索ホットパス用)。*/
   int genLegal(Color color, int[] out) {
-    long m = legalBits(color);
+    return bitsToIndexes(legalBits(color), out);
+  }
+
+  /** ビット集合 m の各立ちビットのインデックスを out に詰めて個数を返す。
+   * legalBits を呼び出し側で一度だけ計算し、終局/パス判定と着手列挙の両方に使い回すため分離。*/
+  static int bitsToIndexes(long m, int[] out) {
     int n = 0;
     while (m != 0) {
       out[n++] = Long.numberOfTrailingZeros(m);
