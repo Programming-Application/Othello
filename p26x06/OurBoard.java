@@ -1,4 +1,4 @@
-package p26x42;
+package p26x06;
 
 import static ap26.Color.*;
 
