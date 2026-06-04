@@ -5,7 +5,7 @@ import ap26.Color;
 import ap26.Move;
 import ap26.Player;
 import ap26.league.OfficialBoard;
-import p26xdd.OurPlayer;
+import p26x29.OurPlayer;
 
 import java.io.IOException;
 import java.io.PrintWriter;
