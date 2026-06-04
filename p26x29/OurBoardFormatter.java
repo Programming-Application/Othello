@@ -1,4 +1,4 @@
-package p26x00;
+package p26x29;
 
 import static ap26.Board.SIZE;
 import static ap26.Color.BLACK;

@@ -57,7 +57,7 @@ public class Competition26 {
                     new p26x42.OurPlayer(color),
 
                     // サンプル学生プレイヤー
-                    new p26x00.OurPlayer(color),
+                    new p26x29.OurPlayer(color),
 
                     // ベースライン
                     new ap26.league.RandomPlayer(color),
