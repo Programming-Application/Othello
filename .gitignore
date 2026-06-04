@@ -1,0 +1,8 @@
+# build output
+bin/
+
+# runtime logs
+logs/
+
+# OS
+.DS_Store

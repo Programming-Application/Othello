@@ -53,16 +53,15 @@ public class Competition26 {
     public static void main(String args[]) {
         Function<Color, Player[]> builder = (Color color) -> {
             return new Player[] {
+                    // 自チームの実装
+                    new p26x42.OurPlayer(color),
+
                     // サンプル学生プレイヤー
                     new p26x00.OurPlayer(color),
 
                     // ベースライン
                     new ap26.league.RandomPlayer(color),
                     new ap26.league.RandomPlayer(color),
-                    new ap26.league.RandomPlayer(color),
-
-                    // 自チームの実装を追加 (例):
-                    // new p26x_dd_.OurPlayer(color),
             };
         };
 
