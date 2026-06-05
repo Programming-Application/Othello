@@ -1,4 +1,4 @@
-package p26x42;
+package p26x42base;
 
 import static ap26.Color.*;
 
@@ -345,22 +345,6 @@ public class OurBoard implements Board, Cloneable {
     nb.recomputeHash();
     return nb;
   }
-
-  /** 主対角線(a1-f6)で反転した盤 (行↔列)。色は不変、マス番号のみ T(k)=(k%6)*6+(k/6)。*/
-  public OurBoard transpose() {
-    var nb = new OurBoard(transposeBits(black), transposeBits(white), transposeBits(blockMask), this.move, 0);
-    nb.recomputeHash();
-    return nb;
-  }
-
-  static long transposeBits(long bb) {
-    long r = 0;
-    while (bb != 0) { int k = Long.numberOfTrailingZeros(bb); bb &= bb - 1; r |= 1L << ((k % 6) * 6 + (k / 6)); }
-    return r;
-  }
-
-  /** マス番号の主対角線反転。*/
-  public static int transposeIndex(int k) { return (k % 6) * 6 + (k / 6); }
 
   /** 盤面セルの Zobrist ハッシュ (置換表/局面集合のキー用)。*/
   public long cellHash() {
