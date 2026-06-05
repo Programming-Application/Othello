@@ -1,4 +1,4 @@
-package p26x42;
+package p26x42base;
 
 import ap26.*;
 import static ap26.Board.*;
@@ -92,7 +92,7 @@ class MyEval {
  * </ul>
  */
 public class OurPlayer extends ap26.Player {
-  static final String MY_NAME = "26X4";
+  static final String MY_NAME = "26X4b";
 
   /** 1 ゲームの持ち時間 (本番 60s)。安全マージンを見て 58s を上限として配分する。*/
   static final long TOTAL_NANOS = 58_000_000_000L;
@@ -136,16 +136,6 @@ public class OurPlayer extends ap26.Player {
   public static int wldProven = 0;        // WLD証明が時間内に完了した回数
   public static int wldFallback = 0;      // WLD証明が期限切れでフォールバックした回数
   public static long benchBudgetNanos = 0; // >0 ならこの値を 1 手の持ち時間に固定 (ベンチ用)
-
-  // --- オフライン必勝book抽出用 (既定 null = 本番では無効・無害) ---
-  // 非nullのとき、勝者側の手番ノードを bookKey -> bestMove で記録する:
-  //   solveMin(白手番)で白勝ち確定(best<=-1), solveMax(黒手番)で黒勝ち確定(best>=+1)。
-  // bookKey = cellHash ^ (白手番なら BOOK_SIDE_XOR, 黒手番なら 0)。
-  //   → cellHash は blockMask を含むので配置別に区別され、side-xor で同一配置の手番違いも区別される。
-  // live 側は myColor に応じて同じ bookKey を引く。
-  public static java.util.HashMap<Long, Byte> bookRec = null;
-  public static int BOOK_REC_MIN_EMPTIES = 23;
-  public static final long BOOK_SIDE_XOR = 0xD1B54A32D192ED03L; // 白手番キー識別用
 
   /** ムーブオーダリング用の静的優先度 (評価値ではない。角を高く、X/C マスを低く)。*/
   static final int[] PRIO = {
@@ -191,13 +181,6 @@ public class OurPlayer extends ap26.Player {
   final byte[] ttFlag;
   final byte[] ttMove;
 
-  // --- 必勝book: 標準盤＋全変形盤(候補11マスから1〜3個=231通り)を弱証明し、勝者側の手番局面を
-  //   bookKey -> 着手index で収録 (lab/ExtractAllBooks で抽出, 62k局面/0.56MB)。
-  //   bookKey = cellHash ^ (白手番なら BOOK_SIDE_XOR / 黒手番なら 0)。cellHashはblockMaskを含むので配置別。
-  //   live は自手番が勝者側のとき hit → 必勝手を即指す。未同梱なら null=無効(探索へ)。
-  public static final java.util.HashMap<Long, Integer> PROVEN_BOOK = loadProvenBook();
-  public static int bookHits = 0; // book 着手回数 (診断用)
-
   // --- 中盤探索用 置換表 (深さ付き) ---
   static final int INF = 1_000_000_000;
   static final int MT_BITS = 19;
@@ -225,19 +208,6 @@ public class OurPlayer extends ap26.Player {
     ttMove = new byte[sz];
   }
 
-  /** 必勝book を classpath 資源 (p26x42/proven.book) から読込む。無ければ null。*/
-  static java.util.HashMap<Long, Integer> loadProvenBook() {
-    try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.BufferedInputStream(
-        OurPlayer.class.getResourceAsStream("proven.book")))) {
-      int n = in.readInt();
-      java.util.HashMap<Long, Integer> m = new java.util.HashMap<>(n * 2);
-      for (int i = 0; i < n; i++) { long k = in.readLong(); int v = in.readByte() & 0xFF; m.put(k, v); }
-      return m;
-    } catch (Exception e) {
-      return null; // 未同梱でも安全にフォールバック(探索のみで動作)
-    }
-  }
-
   /** ゲーム開始時にリーグから呼ばれる。盤面を取り込み、持ち時間の累積をリセットする。*/
   @Override
   public void setBoard(Board b) {
@@ -260,18 +230,6 @@ public class OurPlayer extends ap26.Player {
     if (!this.board.hasLegalMove(me)) {
       result = Move.ofPass(me);
     } else {
-      // 証明済み必勝book を最優先で参照 (標準＋全変形, 自手番が勝者側のとき hit)。
-      // book は勝者側の手番局面(空き>=23)を網羅(検証済)。切れた後は空き<=21で live の
-      // 厳密WLD(<=WLD_THRESHOLD)が勝ちを保持するので end-to-end で必勝。
-      if (PROVEN_BOOK != null) {
-        long key = this.board.cellHash() ^ (me == WHITE ? BOOK_SIDE_XOR : 0L);
-        Integer bm = PROVEN_BOOK.get(key);
-        if (bm != null && this.board.isLegalMove(bm, me)) {
-          bookHits++;
-          timeUsedNanos += System.nanoTime() - t0;
-          return new Move(bm, me);
-        }
-      }
       // 常に BLACK 視点に統一 (flip は色のみ入替で、マス番号は不変)
       OurBoard root = (me == BLACK) ? this.board.clone() : this.board.flipped();
       int empties = root.count(NONE);
@@ -549,12 +507,6 @@ public class OurPlayer extends ap26.Player {
       }
     }
     store(idx, h, best, alpha0, beta0, bestMove);
-    // オフラインbook抽出: 黒勝ち確定の黒手番を記録 (本番は bookRec==null で素通り)。
-    // transpose配置も同時記録(対称配置を解かずにカバー)。
-    if (bookRec != null && best >= 1 && Long.bitCount(b.empty()) >= BOOK_REC_MIN_EMPTIES) {
-      bookRec.putIfAbsent(b.cellHash(), (byte) bestMove);
-      bookRec.putIfAbsent(b.transpose().cellHash(), (byte) OurBoard.transposeIndex(bestMove));
-    }
     return best;
   }
 
@@ -659,12 +611,6 @@ public class OurPlayer extends ap26.Player {
       }
     }
     store(idx, h, best, alpha0, beta0, bestMove);
-    // オフラインbook抽出: 白勝ち確定の白手番を記録 (本番は bookRec==null で素通り)。
-    // transpose配置も同時記録(対称配置を解かずにカバー)。
-    if (bookRec != null && best <= -1 && Long.bitCount(b.empty()) >= BOOK_REC_MIN_EMPTIES) {
-      bookRec.putIfAbsent(b.cellHash() ^ BOOK_SIDE_XOR, (byte) bestMove);
-      bookRec.putIfAbsent(b.transpose().cellHash() ^ BOOK_SIDE_XOR, (byte) OurBoard.transposeIndex(bestMove));
-    }
     return best;
   }
 
