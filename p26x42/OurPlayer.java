@@ -145,6 +145,7 @@ public class OurPlayer extends ap26.Player {
   // live 側は myColor に応じて同じ bookKey を引く。
   public static java.util.HashMap<Long, Byte> bookRec = null;
   public static int BOOK_REC_MIN_EMPTIES = 23;
+  public static boolean BOOK_REC_DRAW = false; // true: 引分以上(黒best>=0/白best<=0)も記録(引分config用)
   public static final long BOOK_SIDE_XOR = 0xD1B54A32D192ED03L; // 白手番キー識別用
 
   /** ムーブオーダリング用の静的優先度 (評価値ではない。角を高く、X/C マスを低く)。*/
@@ -552,9 +553,9 @@ public class OurPlayer extends ap26.Player {
       }
     }
     store(idx, h, best, alpha0, beta0, bestMove);
-    // オフラインbook抽出: 黒勝ち確定の黒手番を記録 (本番は bookRec==null で素通り)。
+    // オフラインbook抽出: 黒勝ち(引分modeでは引分以上)の黒手番を記録 (本番は bookRec==null で素通り)。
     // transpose配置も同時記録(対称配置を解かずにカバー)。
-    if (bookRec != null && best >= 1 && Long.bitCount(b.empty()) >= BOOK_REC_MIN_EMPTIES) {
+    if (bookRec != null && best >= (BOOK_REC_DRAW ? 0 : 1) && Long.bitCount(b.empty()) >= BOOK_REC_MIN_EMPTIES) {
       bookRec.putIfAbsent(b.cellHash(), (byte) bestMove);
       bookRec.putIfAbsent(b.transpose().cellHash(), (byte) OurBoard.transposeIndex(bestMove));
     }
@@ -662,9 +663,9 @@ public class OurPlayer extends ap26.Player {
       }
     }
     store(idx, h, best, alpha0, beta0, bestMove);
-    // オフラインbook抽出: 白勝ち確定の白手番を記録 (本番は bookRec==null で素通り)。
+    // オフラインbook抽出: 白勝ち(引分modeでは引分以上)の白手番を記録 (本番は bookRec==null で素通り)。
     // transpose配置も同時記録(対称配置を解かずにカバー)。
-    if (bookRec != null && best <= -1 && Long.bitCount(b.empty()) >= BOOK_REC_MIN_EMPTIES) {
+    if (bookRec != null && best <= (BOOK_REC_DRAW ? 0 : -1) && Long.bitCount(b.empty()) >= BOOK_REC_MIN_EMPTIES) {
       bookRec.putIfAbsent(b.cellHash() ^ BOOK_SIDE_XOR, (byte) bestMove);
       bookRec.putIfAbsent(b.transpose().cellHash() ^ BOOK_SIDE_XOR, (byte) OurBoard.transposeIndex(bestMove));
     }
