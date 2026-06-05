@@ -225,10 +225,13 @@ public class OurPlayer extends ap26.Player {
     ttMove = new byte[sz];
   }
 
-  /** 必勝book を classpath 資源 (p26x42/proven.book) から読込む。無ければ null。*/
+  /**
+   * 必勝book を規約準拠で読込む (§14: リソースは ap26.ResourceLoader 経由のみ許可)。
+   * 配置は p26x42/resources/proven.book。見つからなければ null=無効 (探索のみで安全に動作)。
+   */
   static java.util.HashMap<Long, Integer> loadProvenBook() {
     try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.BufferedInputStream(
-        OurPlayer.class.getResourceAsStream("proven.book")))) {
+        ap26.ResourceLoader.open(OurPlayer.class, "proven.book")))) {
       int n = in.readInt();
       java.util.HashMap<Long, Integer> m = new java.util.HashMap<>(n * 2);
       for (int i = 0; i < n; i++) { long k = in.readLong(); int v = in.readByte() & 0xFF; m.put(k, v); }
