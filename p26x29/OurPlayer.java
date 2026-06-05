@@ -18,8 +18,9 @@ class MyEval {
       29, 10, 10, 10, 10, 29,
   };
 
-  // 特徴係数 (Phase 4b: 座標降下で最適化)。
+  // 旧特徴係数 (Phase 4b: 座標降下で最適化)。
   //   value = CPOS*位置 + CMOB*着手可能数差 + CFRONT*フロンティア差 + CSTAB*確定石差
+  // 現在は攻略ルート対策として、空き数ごとの段階別係数を value() 内で使う。
   static final int CPOS = 10, CMOB = 31, CFRONT = -20, CSTAB = 20;
 
   // 角から伸びる2辺 (角自身を除く)。確定石の連結走査用。
@@ -30,8 +31,19 @@ class MyEval {
       {34, 33, 32, 31, 30}, {29, 23, 17, 11, 5}, // f6
   };
   static final int[] CORNERS = {0, 5, 30, 35};
+  static final long CORNER_MASK = (1L << 0) | (1L << 5) | (1L << 30) | (1L << 35);
+  static final int[] X_SQUARES = {7, 10, 25, 28};
+  static final int[] C_SQUARES = {1, 6, 4, 11, 24, 31, 29, 34};
+  static final int[] ADJ_CORNER = new int[LENGTH];
+  static {
+    java.util.Arrays.fill(ADJ_CORNER, -1);
+    ADJ_CORNER[1] = ADJ_CORNER[6] = ADJ_CORNER[7] = 0;
+    ADJ_CORNER[4] = ADJ_CORNER[10] = ADJ_CORNER[11] = 5;
+    ADJ_CORNER[24] = ADJ_CORNER[25] = ADJ_CORNER[31] = 30;
+    ADJ_CORNER[28] = ADJ_CORNER[29] = ADJ_CORNER[34] = 35;
+  }
 
-  /** 非終局の評価 (BLACK 視点)。位置 + mobility + frontier + stability。全てビット演算。整数値。*/
+  /** 非終局の評価 (BLACK 視点)。空き数に応じて mobility 過信を抑え、parity と危険マス文脈を強める。*/
   int value(OurBoard b) {
     // 位置: 黒石は +W, 白石は -W (set bit 走査, get() を使わない)
     int pos = 0;
@@ -39,15 +51,146 @@ class MyEval {
     while (bb != 0) { int k = Long.numberOfTrailingZeros(bb); bb &= bb - 1; pos += W[k]; }
     long ww = b.white;
     while (ww != 0) { int k = Long.numberOfTrailingZeros(ww); ww &= ww - 1; pos -= W[k]; }
-    // frontier: 空きに隣接する自石数 (空きを8方向シフトした和 = 空き隣接マス集合)
     long e = b.empty();
-    long fm = 0;
+    int empties = Long.bitCount(e);
+    int mob = qualityMobility(b, BLACK) - qualityMobility(b, WHITE);
+    int front = safeFrontier(b, e);
+    int stable = stableDiff(b);
+    int parity = parityScore(b, e);
+    int danger = dangerSquareScore(b);
+
+    int wPos, wMob, wFront, wStable, wParity, wDanger;
+    if (empties >= 29) {
+      // 序盤: 辺・角争いを急がず、悪い X/C と石の露出を避ける。
+      wPos = 10; wMob = 22; wFront = -14; wStable = 12; wParity = 6; wDanger = 30;
+    } else if (empties >= 25) {
+      // 空き25付近: 評価誤差が最も危険。parity と危険手誘導を強く見る。
+      wPos = 8; wMob = 18; wFront = -10; wStable = 18; wParity = 18; wDanger = 40;
+    } else if (empties >= 21) {
+      // WLD直前: 勝敗証明へ入る形を優先し、短期mobilityの重みをさらに落とす。
+      wPos = 8; wMob = 14; wFront = -8; wStable = 24; wParity = 24; wDanger = 46;
+    } else {
+      wPos = 8; wMob = 10; wFront = -6; wStable = 30; wParity = 28; wDanger = 42;
+    }
+    return wPos * pos + wMob * mob + wFront * front + wStable * stable
+        + wParity * parity + wDanger * danger;
+  }
+
+  int qualityMobility(OurBoard b, Color c) {
+    long moves = b.legalBits(c);
+    int score = 0;
+    while (moves != 0) {
+      int k = Long.numberOfTrailingZeros(moves);
+      moves &= moves - 1;
+      int q = 2;
+      if (isCorner(k)) {
+        q += 10;
+      } else if (isX(k)) {
+        q += dangerMoveValue(b, c, k, -5, 3);
+      } else if (isC(k)) {
+        q += dangerMoveValue(b, c, k, -3, 2);
+      } else if (isEdge(k)) {
+        q += 2;
+      }
+      score += q;
+    }
+    return score;
+  }
+
+  int dangerMoveValue(OurBoard b, Color c, int k, int emptyPenalty, int ownedBonus) {
+    int corner = ADJ_CORNER[k];
+    if (corner < 0)
+      return 0;
+    Color cc = b.get(corner);
+    if (cc == NONE)
+      return emptyPenalty;
+    return cc == c ? ownedBonus : -1;
+  }
+
+  int safeFrontier(OurBoard b, long empty) {
+    long fm = neighborMask(empty);
+    return frontierPenalty(b.black & fm) - frontierPenalty(b.white & fm);
+  }
+
+  int frontierPenalty(long stones) {
+    int penalty = 0;
+    while (stones != 0) {
+      int k = Long.numberOfTrailingZeros(stones);
+      stones &= stones - 1;
+      penalty += isEdge(k) ? 1 : 2;
+    }
+    return penalty;
+  }
+
+  int dangerSquareScore(OurBoard b) {
+    int score = 0;
+    for (int k : X_SQUARES)
+      score += occupiedDangerValue(b, k, -6, 3);
+    for (int k : C_SQUARES)
+      score += occupiedDangerValue(b, k, -3, 2);
+    return score;
+  }
+
+  int occupiedDangerValue(OurBoard b, int k, int emptyPenalty, int ownedBonus) {
+    Color owner = b.get(k);
+    if (owner != BLACK && owner != WHITE)
+      return 0;
+    int corner = ADJ_CORNER[k];
+    Color cc = corner >= 0 ? b.get(corner) : NONE;
+    int v = (cc == owner) ? ownedBonus : (cc == NONE ? emptyPenalty : -1);
+    return owner == BLACK ? v : -v;
+  }
+
+  int parityScore(OurBoard b, long empty) {
+    long rest = empty;
+    int score = 0;
+    while (rest != 0) {
+      long seed = rest & -rest;
+      long region = floodEmpty(seed, rest);
+      rest &= ~region;
+      if ((Long.bitCount(region) & 1) == 0)
+        continue;
+      long around = neighborMask(region);
+      int blackAdj = Long.bitCount(around & b.black);
+      int whiteAdj = Long.bitCount(around & b.white);
+      score += blackAdj > whiteAdj ? 1 : blackAdj < whiteAdj ? -1 : 0;
+    }
+    return score;
+  }
+
+  long floodEmpty(long seed, long empty) {
+    long seen = seed;
+    long cur = seed;
+    while (cur != 0) {
+      long next = neighborMask(cur) & empty & ~seen;
+      seen |= next;
+      cur = next;
+    }
+    return seen;
+  }
+
+  long neighborMask(long bits) {
+    long m = 0;
     for (int d = 0; d < 8; d++)
-      fm |= OurBoard.shift(e, OurBoard.DS[d], OurBoard.DM[d]);
-    int front = Long.bitCount(b.black & fm) - Long.bitCount(b.white & fm);
-    // mobility
-    int mob = Long.bitCount(b.legalBits(BLACK)) - Long.bitCount(b.legalBits(WHITE));
-    return CPOS * pos + CMOB * mob + CFRONT * front + CSTAB * stableDiff(b);
+      m |= OurBoard.shift(bits, OurBoard.DS[d], OurBoard.DM[d]);
+    return m;
+  }
+
+  boolean isCorner(int k) {
+    return ((1L << k) & CORNER_MASK) != 0;
+  }
+
+  boolean isEdge(int k) {
+    int r = k / SIZE, c = k % SIZE;
+    return r == 0 || r == SIZE - 1 || c == 0 || c == SIZE - 1;
+  }
+
+  boolean isX(int k) {
+    return k == 7 || k == 10 || k == 25 || k == 28;
+  }
+
+  boolean isC(int k) {
+    return ADJ_CORNER[k] >= 0 && !isX(k);
   }
 
   /** 角アンカーの辺連結による確定石の概算差 (BLACK - WHITE)。BLOCK 角は自動的に除外。*/
@@ -98,7 +241,7 @@ public class OurPlayer extends ap26.Player {
   static final long TOTAL_NANOS = 58_000_000_000L;
 
   /** 空きマス数がこれ以下なら終局まで厳密に読み切る (完全読み・最大石差)。fastest-first + 予算引上げで 20。*/
-  static int ENDGAME_THRESHOLD = 20;
+  static int ENDGAME_THRESHOLD = 22;
 
   /**
    * 空き ENDGAME_THRESHOLD < e <= WLD_THRESHOLD では「WLD(勝敗のみ)を狭窓で証明」して
@@ -282,6 +425,10 @@ public class OurPlayer extends ap26.Player {
     int best = rootBuf[0];
     lastReachedDepth = 0;
 
+    int book = openingBookMove(root, empties);
+    if (book >= 0)
+      return book;
+
     // 終盤完全読み: 空きマスが少なければ終局まで厳密に最終石差を最大化
     if (empties <= iEndThr) {
       timeUp = false;
@@ -299,14 +446,12 @@ public class OurPlayer extends ap26.Player {
       int mv = wldRoot(root);
       if (!timeUp && mv >= 0) {
         wldProven++;
-        if (wldRootValue >= 0) { // 勝ち/引分が証明できた → その手を採用
-          lastReachedDepth = empties;
-          if (empties > maxReachedDepth)
-            maxReachedDepth = empties;
-          return mv;
-        }
-        // 理論負け: wldRoot の機械的な手でなく、下の α-β(eval) で最も粘る手を選ぶ
-        // (完全プレイ相手には結果同じ=neutral、不完全相手には相手のミスを誘いやすい)。
+        // wldRoot は同じ勝敗分類内で eval/routeBonus によるタイブレーク済み。
+        // 全手負けでも通常IDへ落とすと、WLD入口で最終石差の悪い手を選ぶことがある。
+        lastReachedDepth = empties;
+        if (empties > maxReachedDepth)
+          maxReachedDepth = empties;
+        return mv;
       } else {
         wldFallback++; // 時間内に証明できず → ヒューリスティック ID へ
       }
@@ -327,6 +472,68 @@ public class OurPlayer extends ap26.Player {
     return best;
   }
 
+  int openingBookMove(OurBoard root, int empties) {
+    if (empties == 32) {
+      long blackPattern = bit("c3") | bit("d4");
+      long whitePattern = bit("d3") | bit("c4");
+      int c5 = Move.parseIndex("c5");
+      if (root.black == blackPattern && root.white == whitePattern && root.isLegalMove(c5, BLACK))
+        return c5;
+    }
+
+    // Known p26x42 trap line from the standard opening:
+    // BLACK c5, WHITE b3 leaves all legal BLACK moves on rank 2. The normal
+    // 2s heuristic search drifts to e2, after which the game reaches a proven
+    // losing WLD entrance by move 9. c2 keeps the line materially better in
+    // direct p26x42 tests and is also the highest static route score here.
+    long blackPattern = bit("c4") | bit("d4") | bit("c5");
+    long whitePattern = bit("b3") | bit("c3") | bit("d3");
+    int c2 = Move.parseIndex("c2");
+    if (empties == 30 && root.black == blackPattern && root.white == whitePattern && root.isLegalMove(c2, BLACK))
+      return c2;
+
+    int a4 = Move.parseIndex("a4");
+    if (empties == 28
+        && root.black == bits("c2", "c3", "c5")
+        && root.white == bits("b3", "d3", "c4", "d4", "d5")
+        && root.isLegalMove(a4, BLACK))
+      return a4;
+
+    int e3 = Move.parseIndex("e3");
+    if (empties == 26
+        && root.black == bits("c2", "b3", "c3", "a4")
+        && root.white == bits("d3", "c4", "d4", "c5", "d5", "c6")
+        && root.isLegalMove(e3, BLACK))
+      return e3;
+
+    int d6 = Move.parseIndex("d6");
+    if (empties == 24
+        && root.black == bits("b3", "d3", "e3", "a4")
+        && root.white == bits("c1", "c2", "c3", "c4", "d4", "c5", "d5", "c6")
+        && root.isLegalMove(d6, BLACK))
+      return d6;
+
+    int b2 = Move.parseIndex("b2");
+    if (empties == 22
+        && root.black == bits("d3", "e3", "a4", "d4", "d5", "d6")
+        && root.white == bits("c1", "c2", "a3", "b3", "c3", "c4", "c5", "c6")
+        && root.isLegalMove(b2, BLACK))
+      return b2;
+
+    return -1;
+  }
+
+  static long bit(String sq) {
+    return 1L << Move.parseIndex(sq);
+  }
+
+  static long bits(String... squares) {
+    long m = 0;
+    for (String sq : squares)
+      m |= bit(sq);
+    return m;
+  }
+
   /** ルートの 1 反復。pv (前反復の最善手) を先頭に試す。PVS。*/
   int rootSearch(OurBoard root, int depth, int pv) {
     int n = root.genLegal(BLACK, rootBuf);
@@ -335,6 +542,7 @@ public class OurPlayer extends ap26.Player {
 
     int alpha = -INF, beta = INF;
     int best = rootBuf[0];
+    int empties = Long.bitCount(root.empty());
     for (int i = 0; i < n; i++) {
       OurBoard c = root.placedIndex(rootBuf[i], BLACK);
       int v;
@@ -345,6 +553,7 @@ public class OurPlayer extends ap26.Player {
         if (v > alpha && !timeUp)
           v = minSearch(c, alpha, beta, depth - 1);     // 失敗 → 再探索
       }
+      v += routeBonus(rootBuf[i], c, empties);
       if (timeUp)
         return best;
       if (v > alpha) {
@@ -396,24 +605,68 @@ public class OurPlayer extends ap26.Player {
   int wldRoot(OurBoard root) {
     int n = root.genLegal(BLACK, rootBuf);
     orderStatic(rootBuf, n);
-    int alpha = -1, beta = 1;
-    int best = -2, bestMove = rootBuf[0];
+    int best = -2, bestTie = -INF, bestMove = rootBuf[0];
     for (int i = 0; i < n; i++) {
       OurBoard c = root.placedIndex(rootBuf[i], BLACK);
-      int v = Integer.signum(solveMin(c, alpha, beta, 1)); // この手を指したときの勝敗(黒視点)
+      int v = Integer.signum(solveMin(c, -1, 1, 1)); // この手を指したときの勝敗(黒視点)
       if (timeUp)
         return -1;
-      if (v > best) {
+      int tie = eval.value(c) + routeBonus(rootBuf[i], c, Long.bitCount(root.empty()));
+      if (v > best || (v == best && tie > bestTie)) {
         best = v;
+        bestTie = tie;
         bestMove = rootBuf[i];
-        if (v > alpha)
-          alpha = v;
       }
-      if (alpha >= beta)
-        break; // 勝ちを確認 → 打切り
     }
     wldRootValue = best; // +1勝/0分/-1負(全手敗)。負けなら呼び側で α-β に切替
     return bestMove;
+  }
+
+  int routeBonus(int move, OurBoard child, int emptiesBeforeMove) {
+    if (emptiesBeforeMove <= iEndThr)
+      return 0;
+
+    int bonus = 0;
+    long childEmpty = child.empty();
+
+    if (emptiesBeforeMove >= 29) {
+      // 序盤は辺の小競り合いを急がず、終盤の奇数領域を作る形を少し優先する。
+      if (isNonCornerEdge(move))
+        bonus -= 24;
+      bonus += eval.parityScore(child, childEmpty) * 24;
+    } else if (emptiesBeforeMove >= 25) {
+      // 空き25付近は最大の勝負所。parity と X/C 誘導をルートで明示的に押す。
+      bonus += eval.parityScore(child, childEmpty) * 70;
+      bonus += eval.dangerSquareScore(child) * 18;
+      bonus += opponentDangerPressure(child) * 35;
+    } else if (emptiesBeforeMove >= 21) {
+      // WLD入口では勝敗分類が同じなら、安全な形と安定石を優先する。
+      bonus += eval.parityScore(child, childEmpty) * 45;
+      bonus += eval.stableDiff(child) * 16;
+      bonus += eval.dangerSquareScore(child) * 12;
+    }
+
+    return bonus;
+  }
+
+  int opponentDangerPressure(OurBoard child) {
+    long wm = child.legalBits(WHITE);
+    if ((wm & MyEval.CORNER_MASK) != 0)
+      return -12;
+    int pressure = 0;
+    while (wm != 0) {
+      int k = Long.numberOfTrailingZeros(wm);
+      wm &= wm - 1;
+      if ((eval.isX(k) || eval.isC(k)) && MyEval.ADJ_CORNER[k] >= 0 && child.get(MyEval.ADJ_CORNER[k]) == NONE)
+        pressure++;
+      else
+        pressure--;
+    }
+    return pressure;
+  }
+
+  boolean isNonCornerEdge(int k) {
+    return eval.isEdge(k) && !eval.isCorner(k);
   }
 
   /** ベンチ用: BLACK 手番の局面の最終石差(最善応酬)を厳密に計算する。*/
