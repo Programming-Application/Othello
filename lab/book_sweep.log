@@ -1,0 +1,122 @@
+blocks=[] WLD=-1(白勝ち,merge) entries+4072
+blocks=[0] WLD=+1(黒勝ち) nodes=5,292,288,062 time=1663.7s book=5285
+blocks=[0, 1] WLD=+1(黒勝ち) nodes=2,070,742,502 time=668.8s book=5723
+blocks=[0, 1, 2] WLD=+1(黒勝ち) nodes=849,440,944 time=279.3s book=5975
+blocks=[0, 1, 3] WLD=+1(黒勝ち) nodes=338,592,245 time=113.0s book=6141
+blocks=[0, 1, 4] WLD=+1(黒勝ち) nodes=670,031,840 time=228.5s book=6411
+blocks=[0, 1, 5] WLD=+1(黒勝ち) nodes=662,372,694 time=206.1s book=6573
+blocks=[0, 1, 6] WLD=+1(黒勝ち) nodes=244,738,147 time=81.5s book=6722
+blocks=[0, 1, 12] WLD=+1(黒勝ち) nodes=247,366,876 time=78.4s book=6858
+blocks=[0, 1, 18] WLD=+1(黒勝ち) nodes=174,979,151 time=54.8s book=6996
+blocks=[0, 1, 24] WLD=+1(黒勝ち) nodes=261,055,433 time=80.3s book=7142
+blocks=[0, 1, 30] WLD=+1(黒勝ち) nodes=340,636,600 time=105.5s book=7284
+blocks=[0, 2] WLD=+1(黒勝ち) nodes=7,282,383,810 time=2320.2s book=8688
+blocks=[0, 2, 3] WLD=+1(黒勝ち) nodes=532,870,641 time=175.5s book=8932
+blocks=[0, 2, 4] WLD=+1(黒勝ち) nodes=740,161,537 time=242.2s book=9222
+blocks=[0, 2, 5] WLD=+1(黒勝ち) nodes=1,981,772,373 time=632.1s book=9618
+blocks=[0, 2, 12] WLD=+1(黒勝ち) nodes=450,639,260 time=136.8s book=9857
+blocks=[0, 2, 18] WLD=+1(黒勝ち) nodes=414,720,819 time=126.2s book=10101
+blocks=[0, 2, 24] WLD=+1(黒勝ち) nodes=719,533,476 time=224.4s book=10401
+blocks=[0, 2, 30] WLD=+1(黒勝ち) nodes=746,129,699 time=226.8s book=10667
+blocks=[0, 3] WLD=+1(黒勝ち) nodes=7,430,680,223 time=2350.5s book=11877
+blocks=[0, 3, 4] WLD=+1(黒勝ち) nodes=808,136,230 time=278.3s book=12129
+blocks=[0, 3, 5] WLD=+1(黒勝ち) nodes=2,630,495,087 time=855.6s book=12663
+blocks=[0, 3, 18] WLD=+1(黒勝ち) nodes=358,530,897 time=117.7s book=12810
+blocks=[0, 3, 24] WLD=+1(黒勝ち) nodes=905,376,714 time=299.7s book=13104
+blocks=[0, 3, 30] WLD=+1(黒勝ち) nodes=530,960,384 time=163.5s book=13248
+blocks=[0, 4] WLD=+1(黒勝ち) nodes=6,723,575,644 time=2348.9s book=14336
+blocks=[0, 4, 5] WLD=+1(黒勝ち) nodes=1,901,939,733 time=616.2s book=14822
+blocks=[0, 4, 24] WLD=+1(黒勝ち) nodes=765,996,509 time=243.9s book=15163
+blocks=[0, 4, 30] WLD=+1(黒勝ち) nodes=1,430,386,888 time=486.3s book=15511
+blocks=[0, 5] WLD=+1(黒勝ち) nodes=28,034,076,403 time=8933.4s book=18147
+blocks=[0, 5, 30] WLD=+1(黒勝ち) nodes=655,306,835 time=197.4s book=18288
+blocks=[1] WLD=+1(黒勝ち) nodes=1,802,239,824 time=561.2s book=19092
+blocks=[1, 2] WLD=-1(白勝ち) nodes=5,474,908,773 time=1728.7s book=20666
+blocks=[1, 2, 3] WLD=+1(黒勝ち) nodes=666,154,673 time=218.1s book=20990
+blocks=[1, 2, 4] WLD=-1(白勝ち) nodes=989,129,033 time=320.9s book=21540
+blocks=[1, 2, 5] WLD=-1(白勝ち) nodes=1,348,535,828 time=427.1s book=22042
+blocks=[1, 2, 6] WLD=+1(黒勝ち) nodes=527,137,448 time=163.8s book=22402
+blocks=[1, 2, 12] WLD=+1(黒勝ち) nodes=666,560,849 time=211.5s book=22814
+blocks=[1, 2, 18] WLD=+1(黒勝ち) nodes=370,458,015 time=112.8s book=23072
+blocks=[1, 2, 24] WLD=-1(白勝ち) nodes=687,821,781 time=216.2s book=23546
+blocks=[1, 2, 30] WLD=-1(白勝ち) nodes=1,423,567,579 time=447.3s book=24030
+blocks=[1, 3] WLD=+1(黒勝ち) nodes=1,165,764,779 time=365.6s book=24238
+blocks=[1, 3, 4] WLD=+1(黒勝ち) nodes=93,109,609 time=29.9s book=24336
+blocks=[1, 3, 5] WLD=+1(黒勝ち) nodes=399,987,997 time=124.2s book=24502
+blocks=[1, 3, 6] WLD=+1(黒勝ち) nodes=125,861,584 time=39.2s book=24602
+blocks=[1, 3, 12] WLD=+1(黒勝ち) nodes=282,543,516 time=85.2s book=24792
+blocks=[1, 3, 18] WLD=+1(黒勝ち) nodes=75,104,205 time=21.6s book=24882
+blocks=[1, 3, 24] WLD=+1(黒勝ち) nodes=190,217,025 time=59.2s book=25022
+blocks=[1, 3, 30] WLD=+1(黒勝ち) nodes=181,474,447 time=55.5s book=25114
+blocks=[1, 4] WLD=0(引分) nodes=4,100,530,082 time=1305.6s book=25620
+blocks=[1, 4, 5] WLD=-1(白勝ち) nodes=1,608,330,622 time=505.8s book=26170
+blocks=[1, 4, 6] WLD=+1(黒勝ち) nodes=231,040,234 time=70.4s book=26334
+blocks=[1, 4, 12] WLD=+1(黒勝ち) nodes=756,507,812 time=238.3s book=26764
+blocks=[1, 4, 18] WLD=+1(黒勝ち) nodes=426,692,938 time=131.9s book=27076
+blocks=[1, 4, 24] WLD=-1(白勝ち) nodes=820,627,365 time=255.3s book=27568
+blocks=[1, 4, 30] WLD=+1(黒勝ち) nodes=457,557,628 time=145.4s book=27730
+blocks=[1, 5] WLD=+1(黒勝ち) nodes=4,343,322,157 time=1340.5s book=28314
+blocks=[1, 5, 6] WLD=+1(黒勝ち) nodes=371,523,289 time=105.5s book=28462
+blocks=[1, 5, 12] WLD=+1(黒勝ち) nodes=685,537,326 time=191.9s book=28740
+blocks=[1, 5, 18] WLD=+1(黒勝ち) nodes=277,801,252 time=76.4s book=28886
+blocks=[1, 5, 24] WLD=+1(黒勝ち) nodes=360,345,742 time=98.2s book=29044
+blocks=[1, 5, 30] WLD=+1(黒勝ち) nodes=378,452,116 time=106.3s book=29190
+blocks=[1, 6] WLD=+1(黒勝ち) nodes=732,418,218 time=218.9s book=29519
+blocks=[1, 12] WLD=+1(黒勝ち) nodes=1,476,224,270 time=424.0s book=29957
+blocks=[1, 12, 18] WLD=+1(黒勝ち) nodes=149,788,928 time=42.0s book=30087
+blocks=[1, 12, 24] WLD=+1(黒勝ち) nodes=283,682,914 time=80.3s book=30283
+blocks=[1, 12, 30] WLD=+1(黒勝ち) nodes=359,226,345 time=99.9s book=30421
+blocks=[1, 18] WLD=+1(黒勝ち) nodes=739,921,152 time=211.8s book=30703
+blocks=[1, 18, 24] WLD=+1(黒勝ち) nodes=193,730,235 time=54.4s book=30839
+blocks=[1, 18, 30] WLD=+1(黒勝ち) nodes=170,718,477 time=46.5s book=30957
+blocks=[1, 24] WLD=-1(白勝ち) nodes=3,519,802,109 time=1015.9s book=32385
+blocks=[1, 24, 30] WLD=+1(黒勝ち) nodes=241,042,410 time=67.5s book=32527
+blocks=[1, 30] WLD=+1(黒勝ち) nodes=1,468,179,108 time=422.7s book=32857
+blocks=[2] WLD=+1(黒勝ち) nodes=4,450,126,153 time=1341.5s book=34289
+blocks=[2, 3] WLD=+1(黒勝ち) nodes=2,954,929,643 time=882.9s book=34959
+blocks=[2, 3, 4] WLD=+1(黒勝ち) nodes=338,070,051 time=99.1s book=35103
+blocks=[2, 3, 5] WLD=+1(黒勝ち) nodes=1,129,628,983 time=330.7s book=35491
+blocks=[2, 3, 12] WLD=+1(黒勝ち) nodes=503,132,753 time=141.5s book=35809
+blocks=[2, 3, 18] WLD=+1(黒勝ち) nodes=381,134,976 time=105.8s book=36067
+blocks=[2, 3, 24] WLD=+1(黒勝ち) nodes=410,258,801 time=115.3s book=36313
+blocks=[2, 3, 30] WLD=+1(黒勝ち) nodes=186,892,751 time=51.4s book=36385
+blocks=[2, 4] WLD=0(引分) nodes=3,413,670,132 time=1010.6s book=37093
+blocks=[2, 4, 5] WLD=+1(黒勝ち) nodes=1,438,234,737 time=421.3s book=37579
+blocks=[2, 4, 12] WLD=+1(黒勝ち) nodes=229,437,032 time=64.1s book=37793
+blocks=[2, 4, 18] WLD=+1(黒勝ち) nodes=309,736,633 time=86.7s book=38045
+blocks=[2, 4, 24] WLD=+1(黒勝ち) nodes=361,352,808 time=102.3s book=38299
+blocks=[2, 4, 30] WLD=+1(黒勝ち) nodes=570,223,667 time=161.7s book=38535
+blocks=[2, 5] WLD=0(引分) nodes=10,131,147,206 time=2958.8s book=39683
+blocks=[2, 5, 12] WLD=+1(黒勝ち) nodes=1,093,856,924 time=306.7s book=40075
+blocks=[2, 5, 18] WLD=+1(黒勝ち) nodes=926,686,856 time=256.1s book=40439
+blocks=[2, 5, 24] WLD=+1(黒勝ち) nodes=1,510,443,457 time=428.8s book=40891
+blocks=[2, 5, 30] WLD=+1(黒勝ち) nodes=510,826,704 time=141.9s book=41037
+blocks=[2, 12] WLD=+1(黒勝ち) nodes=1,374,274,022 time=381.2s book=41584
+blocks=[2, 18] WLD=+1(黒勝ち) nodes=1,032,178,739 time=287.5s book=42140
+blocks=[2, 18, 24] WLD=+1(黒勝ち) nodes=452,843,733 time=127.5s book=42418
+blocks=[2, 18, 30] WLD=+1(黒勝ち) nodes=1,240,288,993 time=342.9s book=42936
+blocks=[2, 24] WLD=+1(黒勝ち) nodes=2,082,876,686 time=587.1s book=43564
+blocks=[2, 24, 30] WLD=-1(白勝ち) nodes=1,315,267,571 time=370.6s book=44082
+blocks=[2, 30] WLD=0(引分) nodes=5,341,997,320 time=1507.3s book=44812
+blocks=[3] WLD=+1(黒勝ち) nodes=2,716,873,653 time=775.8s book=45570
+blocks=[3, 4] WLD=+1(黒勝ち) nodes=1,764,944,247 time=516.5s book=45840
+blocks=[3, 4, 5] WLD=+1(黒勝ち) nodes=418,109,137 time=121.0s book=45962
+blocks=[3, 4, 18] WLD=+1(黒勝ち) nodes=80,260,957 time=21.4s book=46054
+blocks=[3, 4, 24] WLD=+1(黒勝ち) nodes=236,565,632 time=66.2s book=46166
+blocks=[3, 4, 30] WLD=+1(黒勝ち) nodes=214,536,998 time=59.3s book=46268
+blocks=[3, 5] WLD=0(引分) nodes=11,839,067,609 time=3457.2s book=47690
+blocks=[3, 5, 18] WLD=+1(黒勝ち) nodes=499,530,448 time=137.8s book=47870
+blocks=[3, 5, 24] WLD=+1(黒勝ち) nodes=537,135,200 time=150.6s book=48004
+blocks=[3, 5, 30] WLD=+1(黒勝ち) nodes=371,534,102 time=102.4s book=48118
+blocks=[3, 18] WLD=+1(黒勝ち) nodes=1,263,157,912 time=369.2s book=48399
+blocks=[3, 24] WLD=0(引分) nodes=3,356,459,691 time=989.5s book=48989
+blocks=[3, 24, 30] WLD=+1(黒勝ち) nodes=349,021,627 time=99.3s book=49143
+blocks=[3, 30] WLD=+1(黒勝ち) nodes=1,581,079,641 time=459.8s book=49341
+blocks=[4] WLD=+1(黒勝ち) nodes=6,332,653,523 time=1963.8s book=51249
+blocks=[4, 5] WLD=-1(白勝ち) nodes=11,602,411,483 time=3618.4s book=53475
+blocks=[4, 5, 24] WLD=-1(白勝ち) nodes=1,683,381,354 time=525.4s book=54161
+blocks=[4, 5, 30] WLD=+1(黒勝ち) nodes=838,499,546 time=252.7s book=54383
+blocks=[4, 24] WLD=-1(白勝ち) nodes=5,981,681,455 time=1936.9s book=55565
+blocks=[4, 30] WLD=-1(白勝ち) nodes=9,832,744,519 time=3111.8s book=57305
+blocks=[5] WLD=+1(黒勝ち) nodes=22,695,939,934 time=7221.5s book=60951
+blocks=[5, 30] WLD=-1(白勝ち) nodes=30,946,246,131 time=9785.2s book=62349
