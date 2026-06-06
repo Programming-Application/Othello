@@ -42,7 +42,7 @@ public class Competition26 {
      * 使用する盤面の総数。{@link League} 内で標準盤 1 枚 + 変形盤 ({@code NUM_BOARD} - 1) 枚を生成する。
      * 本番レギュレーション: 3 (標準 1 + 変形 2)。
      */
-    final static int NUM_BOARD = 3;
+    final static int NUM_BOARD = 11;
 
     /**
      * 1 ゲームあたりの持ち時間 (秒)。プレイヤーの自手番合計時間がこれを超えると時間切れ反則。
@@ -53,15 +53,9 @@ public class Competition26 {
     public static void main(String args[]) {
         Function<Color, Player[]> builder = (Color color) -> {
             return new Player[] {
-                    // 自チームの実装
-                    new p26x42.OurPlayer(color),
-
-                    // サンプル学生プレイヤー
-                    new p26x00.OurPlayer(color),
-
-                    // ベースライン
-                    new ap26.league.RandomPlayer(color),
-                    new ap26.league.RandomPlayer(color),
+                    // A/B: book版(26X4) vs book前版(26X4b)。bookの上乗せ価値を測る (commit予定なし)
+                    new p26x42.OurPlayer(color),       // book採用
+                    new p26x42base.OurPlayer(color),   // book前(HEAD c466138)
             };
         };
 

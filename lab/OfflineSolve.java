@@ -25,7 +25,23 @@ public class OfflineSolve {
     OurPlayer solver = new OurPlayer(BLACK);
     OurPlayer.searchNodes = 0;
     long t0 = System.nanoTime();
+    // 進捗デーモン: 120秒ごとにノード数・レートを出力 (長時間解の収束/thrash監視用)
+    Thread prog = new Thread(() -> {
+      try {
+        long last = 0;
+        while (true) {
+          Thread.sleep(120_000);
+          long n = OurPlayer.searchNodes, el = System.nanoTime() - t0;
+          System.err.printf("  ...%.0fs nodes=%,d  (%.1fM/s, 直近%.1fM/s)%n",
+              el / 1e9, n, n / (el / 1e3), (n - last) / 120e6);
+          last = n;
+        }
+      } catch (InterruptedException e) { /* 終了 */ }
+    });
+    prog.setDaemon(true);
+    prog.start();
     int v = solver.solveFromStart(start, -1, 1, budgetSec * 1_000_000_000L); // WLD
+    prog.interrupt();
     long dt = System.nanoTime() - t0;
 
     if (v == Integer.MIN_VALUE) {
