@@ -13,6 +13,9 @@ public class OurPlayer extends ap26.Player {
     static final long OPENING_BUDGET_CAP =  2_000_000_000L;
     static final int  INF    = 1_000_000_000;
     static final int  FF_MIN = 7;               // fastest-first を使う残り空き数下限
+    static final int  LMR_MIN_DEPTH = 3;       // LMR を適用する最小深さ
+    static final int  LMR_MIN_MOVE  = 3;       // LMR を適用する手番インデックス下限
+    static final int  ASPIRATION_DELTA = 100;  // アスピレーション初期ウィンドウ幅
     static final long ZSIDE  = 0x9E3779B97F4A7C15L;
     static final byte TT_EXACT = 1, TT_LOWER = 2, TT_UPPER = 3;
 
@@ -52,6 +55,7 @@ public class OurPlayer extends ap26.Player {
     long deadline      = 0;
     boolean timeUp     = false;
     int  wldRootValue  = 0;
+    int  rootScore     = 0;
     long searchNodes   = 0;
 
     static final int MAX_PLY = 80;
@@ -157,11 +161,23 @@ public class OurPlayer extends ap26.Player {
             // 理論負けまたは時間切れ → IDで最善の負け手を探す
         }
 
+        boolean hasPrevScore = false;
         for (int depth = 1; depth <= empties; depth++) {
             timeUp = false;
-            int b = rootSearch(root, depth, best);
+            int b;
+            if (hasPrevScore && depth >= 3) {
+                int lo = rootScore - ASPIRATION_DELTA;
+                int hi = rootScore + ASPIRATION_DELTA;
+                b = rootSearch(root, depth, best, lo, hi);
+                if (!timeUp && (rootScore <= lo || rootScore >= hi)) {
+                    b = rootSearch(root, depth, best, -INF, INF);
+                }
+            } else {
+                b = rootSearch(root, depth, best, -INF, INF);
+            }
             if (timeUp) break;
             best = b;
+            hasPrevScore = true;
             if (System.nanoTime() >= deadline) break;
         }
         return best;
@@ -341,12 +357,13 @@ public class OurPlayer extends ap26.Player {
 
     // ===== 中盤 PVS α-β =====
 
-    int rootSearch(OurBoard root, int depth, int pv) {
+    int rootSearch(OurBoard root, int depth, int pv, int initAlpha, int initBeta) {
         int n = root.genLegal(BLACK, rootBuf);
         orderStatic(rootBuf, n);
         moveToFront(rootBuf, n, pv);
-        int alpha = -INF, beta = INF;
+        int alpha = initAlpha, beta = initBeta;
         int best = rootBuf[0];
+        int bestScore = -INF;
         for (int i = 0; i < n; i++) {
             OurBoard c = root.placedIndex(rootBuf[i], BLACK);
             int v;
@@ -354,11 +371,14 @@ public class OurPlayer extends ap26.Player {
                 v = midMin(c, alpha, beta, depth - 1);
             } else {
                 v = midMin(c, alpha, alpha + 1, depth - 1);
-                if (v > alpha && !timeUp) v = midMin(c, alpha, beta, depth - 1);
+                if (!timeUp && v > alpha) v = midMin(c, alpha, beta, depth - 1);
             }
-            if (timeUp) return best;
-            if (v > alpha) { alpha = v; best = rootBuf[i]; }
+            if (timeUp) { rootScore = bestScore; return best; }
+            if (v > bestScore) { bestScore = v; best = rootBuf[i]; }
+            if (bestScore > alpha) alpha = bestScore;
+            if (alpha >= beta) break;
         }
+        rootScore = bestScore;
         return best;
     }
 
@@ -393,8 +413,9 @@ public class OurPlayer extends ap26.Player {
             if (i == 0) {
                 v = midMin(c, alpha, beta, depth - 1);
             } else {
-                v = midMin(c, alpha, alpha + 1, depth - 1);
-                if (v > alpha && v < beta && !timeUp) v = midMin(c, alpha, beta, depth - 1);
+                int d = (i >= LMR_MIN_MOVE && depth >= LMR_MIN_DEPTH) ? depth - 2 : depth - 1;
+                v = midMin(c, alpha, alpha + 1, d);
+                if (!timeUp && v > alpha) v = midMin(c, alpha, beta, depth - 1);
             }
             if (timeUp) return best > -INF ? best : alpha;
             if (v > best) { best = v; bestMove = mv[i]; }
@@ -436,8 +457,9 @@ public class OurPlayer extends ap26.Player {
             if (i == 0) {
                 v = midMax(c, alpha, beta, depth - 1);
             } else {
-                v = midMax(c, beta - 1, beta, depth - 1);
-                if (v < beta && v > alpha && !timeUp) v = midMax(c, alpha, beta, depth - 1);
+                int d = (i >= LMR_MIN_MOVE && depth >= LMR_MIN_DEPTH) ? depth - 2 : depth - 1;
+                v = midMax(c, beta - 1, beta, d);
+                if (!timeUp && v < beta) v = midMax(c, alpha, beta, depth - 1);
             }
             if (timeUp) return best < INF ? best : beta;
             if (v < best) { best = v; bestMove = mv[i]; }

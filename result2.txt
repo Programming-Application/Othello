@@ -1,0 +1,181 @@
+#0:
+  abcdef
+1|      | ..
+2|   .  | o: [d2, e3, b4, c5]
+3|  ox. | 
+4| .xo  | 
+5|  .   | 
+6|      | 
+
+#1:
+  abcdef
+1|    # | ..
+2|   .  | o: [d2, e3, b4, c5]
+3|  ox. | 
+4| .xo  | 
+5|  .   | 
+6|      | 
+
+#2:
+  abcdef
+1|#    #| ..
+2|   .  | o: [d2, e3, b4, c5]
+3|  ox. | 
+4| .xo  | 
+5|  .   | 
+6|      | 
+
+Initializing PlayerProcessManager...
+PlayerProcessManager initialized for 3 players
+Initializing port pool...
+Port pool initialized successfully using ring buffer approach
+Expected port pool size: 8 ports for PARALLELISM=2
+Max concurrent processes: 4 (matches × players)
+=== LEAGUE START ===
+Total matches: 6
+Total games: 18
+Progress reporting: Every 3 minutes
+Parallelism: 2
+===================
+=== SETUP COMPLETED ===
+Players: 3
+Boards per match: 3
+Total matches generated: 6
+Total games generated: 18
+========================
+[CONCURRENT] Starting game: 26X4(1) vs 26X6(2) (concurrent games: 1)
+[GAME] #2: 26X4 vs 26X6 -> 26X4 won by 8        | b4d5e6a4b3c2e3f3e4f4d2e5b2b1a2b5c5b6c6d6a6e1f2a3a5e2f5f6d1c1
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X4(1) vs 26X6(2) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X4(1) vs 2500(0) (concurrent games: 1)
+[GAME] #1: 26X4 vs 2500 -> 26X4 won by 16       | b4b3d2e3a2d1f3d5c5a5a4c6a6a3d6f4f5a1b6e4c2e5b5b1f2b2e2e6c1..f6
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X4(1) vs 2500(0) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 2500(0) vs 26X4(1) (concurrent games: 1)
+[GAME] #1: 2500 vs 26X4 -> 26X4 won by 33       | b4d5e3a4d6d2b3f4f2c2d1c5a2e4b2a3f5f6e5f3a5e6b6f1..c6..a6..a1b1e2..c1..b5
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 2500(0) vs 26X4(1) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X6(2) vs 26X4(1) (concurrent games: 1)
+[GAME] #2: 26X6 vs 26X4 -> 26X6 won by 6        | b4d5e6a4b3d2e3f2e1d6c6a2c5b5e4e2b6f4f3e5d1c1b1c2a6a5b2a3f6f5
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[PERIODIC] Progress: Match 0/6 (0.0%) - Game 4/18 (22.2%) - 3 minutes elapsed\nPort pool status: Ring buffer port management active
+ℹ️ Process count: 5 PlayerMain processes (above concurrent limit 4 due to process reuse)
+[CONCURRENT] Completed game: 26X6(2) vs 26X4(1) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 2500(0) vs 26X4(1) (concurrent games: 1)
+[GAME] #0: 2500 vs 26X4 -> 26X4 won by 28       | b4d5e3a4d6c2b3c5b1c1d1a3c6d2b2e4a5a1e2a6f4e1a2b5..f1f2f3..f5..b6..e6
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 2500(0) vs 26X4(1) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 2500(0) vs 26X6(2) (concurrent games: 1)
+[GAME] #1: 2500 vs 26X6 -> 26X6 won by 27       | c5b3d2c6a3e4d5e3e5c2f3f4b6a6f5e2b1c1b4a1b2a2f1a4d1f6d6f2..e6b5a5
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 2500(0) vs 26X6(2) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 2500(0) vs 26X4(1) (concurrent games: 1)
+[GAME] #2: 2500 vs 26X4 -> 26X4 won by 8        | e3e4c5c2f4c6b1f2b5c1d1d2b3a6b4d5e1f3e5a4e6d6e2a3a2f6a5f5b6b2
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[MATCH] Progress: Match 1/6 (16.7%) - Game 7/18 (38.9%) - 4 minutes elapsed\nPort pool status: Ring buffer port management active
+⚠️  WARNING: Excessive process count detected: 11 processes (expected concurrent: 4, warning threshold: 6)
+[WARN] ProgressReporter: Excessive process count: 11 PlayerMain processes running (threshold: 6)
+[CONCURRENT] Completed game: 2500(0) vs 26X4(1) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X6(2) vs 26X4(1) (concurrent games: 1)
+[GAME] #0: 26X6 vs 26X4 -> 26X4 won by 6        | d2e4f5d1b4b3a2b5d5a3e1a1c1c5e3c2a6a5b6f3f4f6e2e6e5d6c6b2a4b1..f1f2
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X6(2) vs 26X4(1) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X4(1) vs 2500(0) (concurrent games: 1)
+[GAME] #2: 26X4 vs 2500 -> 26X4 won by 24       | b4d5e6a4b3d2e3f4e4c5e5c2a2f6f5d6b5b6c6b2a6..c1d1b1a3f2e2a5..f3..e1
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X4(1) vs 2500(0) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X6(2) vs 26X4(1) (concurrent games: 1)
+[GAME] #1: 26X6 vs 26X4 -> 26X6 won by 1        | b4d5e3d2c5b3d1e4f4c6d6e6b5f3c2f5e2a4a3b2c1a1a5b1a2f1f2a6f6e5b6
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[MATCH] Progress: Match 2/6 (33.3%) - Game 10/18 (55.6%) - 6 minutes elapsed\nPort pool status: Ring buffer port management active
+⚠️  WARNING: Excessive process count detected: 8 processes (expected concurrent: 4, warning threshold: 6)
+[WARN] ProgressReporter: Excessive process count: 8 PlayerMain processes running (threshold: 6)
+[CONCURRENT] Completed game: 26X6(2) vs 26X4(1) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X4(1) vs 26X6(2) (concurrent games: 1)
+[GAME] #1: 26X4 vs 26X6 -> 26X6 won by 3        | b4d5e3a4d6c2b1e4c5c6b6b3a3d2a5c1d1e5f3e2f2f1b2a1a2a6f6f4f5e6b5
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X4(1) vs 26X6(2) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X6(2) vs 2500(0) (concurrent games: 1)
+[GAME] #1: 26X6 vs 2500 -> 26X6 won by 30       | b4b3c2d1a3c5d2d5c6a5e3e4f3e6a4a2d6b6b2f5f4f2e5c1a1..a6..f6..f1..b5..e2
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X6(2) vs 2500(0) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X6(2) vs 2500(0) (concurrent games: 1)
+[GAME] #0: 26X6 vs 2500 -> 26X6 won by 28       | d2e4f5d1b4a5c2f4f3c1b3a4d5e3b2d6a3e5a6a1b5a2b1e2f6c5e6..f2f1e1..b6..c6
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 26X6(2) vs 2500(0) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X6(2) vs 2500(0) (concurrent games: 1)
+[GAME] #2: 26X6 vs 2500 -> 26X6 won by 22       | b4d5e6a4b3d2e3f4e4c5e5c2a2f6f5d6b5b6c6b2a6..c1d1b1a3f2f3e1..a5..e2
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[MATCH] Progress: Match 3/6 (50.0%) - Game 14/18 (77.8%) - 8 minutes elapsed\nPort pool status: Ring buffer port management active
+⚠️  WARNING: Excessive process count detected: 16 processes (expected concurrent: 4, warning threshold: 6)
+[WARN] ProgressReporter: Excessive process count: 16 PlayerMain processes running (threshold: 6)
+[CONCURRENT] Completed game: 26X6(2) vs 2500(0) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 2500(0) vs 26X6(2) (concurrent games: 1)
+[GAME] #2: 2500 vs 26X6 -> 26X6 won by 32       | c5b3d2c6b4d5b5c2b6a6c1e2e4e3f4a5a3e1f2d1e6d6a4f3f5f6..a2b2e5..b1
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[CONCURRENT] Completed game: 2500(0) vs 26X6(2) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 2500(0) vs 26X6(2) (concurrent games: 1)
+[GAME] #0: 2500 vs 26X6 -> 26X6 won by 34       | e3c2b4f3c1c5e4a3a5b3c6d1e1d5d2b2d6e5f5f4a2f6a4a1f2a6e6b6b1f1..e2..b5
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[MATCH] Progress: Match 4/6 (66.7%) - Game 16/18 (88.9%) - 8 minutes elapsed\nPort pool status: Ring buffer port management active
+ℹ️ Process count: 6 PlayerMain processes (above concurrent limit 4 due to process reuse)
+[CONCURRENT] Completed game: 2500(0) vs 26X6(2) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X4(1) vs 2500(0) (concurrent games: 1)
+[GAME] #0: 26X4 vs 2500 -> 26X4 won by 36       | d2e4c5d1f4b5b4a5a6d6a4e3e2a3a2f3f2b6c1f5f1b1f6e1a1c2c6..d5e5e6..b2..b3
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[WARN] ProcessState-0: Process already released (ignoring duplicate release)
+[MATCH] Progress: Match 5/6 (83.3%) - Game 17/18 (94.4%) - 8 minutes elapsed\nPort pool status: Ring buffer port management active
+⚠️  WARNING: Excessive process count detected: 8 processes (expected concurrent: 4, warning threshold: 6)
+[WARN] ProgressReporter: Excessive process count: 8 PlayerMain processes running (threshold: 6)
+[CONCURRENT] Completed game: 26X4(1) vs 2500(0) (concurrent games: 0, busy players: 0)
+[CONCURRENT] Starting game: 26X4(1) vs 26X6(2) (concurrent games: 1)
+[GAME] #0: 26X4 vs 26X6 -> 26X6 won by 10       | d2e4c5d1f4b4c2d6b6b3a3a4a5e3a2d5f3b2e5f6f5f2a1e6b1c6e2a6..b5..e1f1c1
+[WARN] ProcessState-1: Process already released (ignoring duplicate release)
+[WARN] ProcessState-2: Process already released (ignoring duplicate release)
+[FINAL] Progress: Match 6/6 (100.0%) - Game 18/18 (100.0%) - 9 minutes elapsed\nPort pool status: Ring buffer port management active
+⚠️  WARNING: Excessive process count detected: 10 processes (expected concurrent: 4, warning threshold: 6)
+[WARN] ProgressReporter: Excessive process count: 10 PlayerMain processes running (threshold: 6)
+[CONCURRENT] Completed game: 26X4(1) vs 26X6(2) (concurrent games: 0, busy players: 0)
+
+=== LEAGUE COMPLETED ===
+\n=== PROGRESS FINAL REPORT ===
+Completed: 6/6 matches (100.0%) - 18/18 games (100.0%)\nTotal duration: 9.75 minutes\n✅ All matches and games completed successfully
+============================
+Final port pool stats: Ring buffer port management completed
+
+=== Process Reuse Efficiency ===
+Total Games: 72
+Process Starts: 3
+Reuse Efficiency: 95.8% (1.0 = perfect reuse)
+
+Player Statistics:
+Player           Created   Reused    Games Timeouts Efficiency
+===========================================================================
+2500                   1       11       24        0      95.8%
+26X4                   1       11       24        0      95.8%
+26X6                   1       11       24        0      95.8%
+\n=== FINAL RESULTS ===
+Player           Games   Wins  Draws Losses    Score Timeouts Illegals  AvgTime
+===============================================================================================
+26X6(2)             12     10      0      2      180        0        0    17.37s
+26X4(1)             12      8      0      4      152        0        0    27.34s
+2500(0)             12      0      0     12        0        0        0     2.11s
+===============================================================================================
+Total games completed: 18
+========================
