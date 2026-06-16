@@ -1,4 +1,5 @@
 import ap26.*;
+import ap26.league.OfficialBoard;
 import static ap26.Color.*;
 import java.util.*;
 import p26x42.OurBoard;
@@ -25,6 +26,8 @@ public class Bench42b {
   static OurBoard reachRandom(int target) { return new OurBoard(); }
 
   public static void main(String[] args) {
+    runFullGameBenchmark();
+
     // JIT ウォームアップ (計測を代表値にする)
     { OurPlayer w = new OurPlayer(BLACK); OurBoard wb = new OurBoard();
       w.searchValue(wb, 10, true); w.searchValue(wb, 10, false);
@@ -50,6 +53,59 @@ public class Bench42b {
     report("fastest-first 有効   ", f2);
     System.out.printf(Locale.US, "  → ノード数 %.2fx 削減, 時間 %.2fx 短縮%n",
         (double) f1[0] / f2[0], (double) f1[1] / f2[1]);
+  }
+
+  /** 標準盤 #0 で p26x42 同士を1局走らせ、総ノード数/総思考時間/npsを出す。*/
+  static void runFullGameBenchmark() {
+    OfficialBoard start = new OfficialBoard();
+    start.setBoardId("#0");
+
+    Player black = new OurPlayer(BLACK);
+    Player white = new OurPlayer(WHITE);
+    Map<Color, Player> players = Map.of(BLACK, black, WHITE, white);
+
+    Board board = start.clone();
+    black.setBoard(board.clone());
+    white.setBoard(board.clone());
+
+    OurPlayer.searchNodes = 0;
+    OurPlayer.bookHits = 0;
+    OurPlayer.maxReachedDepth = 0;
+
+    long totalThinkNanos = 0;
+    int moves = 0;
+    while (!board.isEnd()) {
+      Color turn = board.getTurn();
+      Player p = players.get(turn);
+      long t = System.nanoTime();
+      Move mv = p.think(board.clone()).colored(turn);
+      totalThinkNanos += System.nanoTime() - t;
+      moves++;
+
+      List<Move> legals = board.findLegalMoves(turn);
+      if (!legals.contains(mv)) {
+        System.out.println("ILLEGAL MOVE by " + turn + ": " + mv);
+        return;
+      }
+      board = board.placed(mv);
+    }
+
+    long nodes = OurPlayer.searchNodes;
+    double sec = totalThinkNanos / 1e9;
+    double nps = nodes / sec;
+
+    System.out.println("================ p26x42 1局ベンチ (標準盤 #0, 自己対戦) ================");
+    System.out.printf(Locale.US, "proven.book      : %s%n", OurPlayer.PROVEN_BOOK != null ? "有効 (本番同等)" : "無効 (純探索)");
+    System.out.printf(Locale.US, "着手数 (両者計)   : %d%n", moves);
+    System.out.printf(Locale.US, "book ヒット手数   : %d%n", OurPlayer.bookHits);
+    System.out.printf(Locale.US, "最終石差 (黒-白)  : %+d%n", board.score());
+    System.out.printf(Locale.US, "探索総ノード数    : %,d nodes%n", nodes);
+    System.out.printf(Locale.US, "総思考時間        : %.3f s%n", sec);
+    System.out.printf(Locale.US, "最大到達深さ      : %d%n", OurPlayer.maxReachedDepth);
+    System.out.printf(Locale.US, "------------------------------------------------------------%n");
+    System.out.printf(Locale.US, ">>> 探索速度       : %,.0f ノード/秒  (%.2f Mnps)%n", nps, nps / 1e6);
+    System.out.println("============================================================");
+    System.out.println();
   }
 
   /** {nodes, nanos} を返す。毎回新インスタンス (TT クリア) で公平に。*/
