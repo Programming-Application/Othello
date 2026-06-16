@@ -298,3 +298,23 @@ A. `Board.get(k)` が `Color.BLOCK` を返すマスがあります。
 ---
 
 **Good luck!**
+
+javac -encoding UTF-8 -d bin Bench42b.java && java -cp bin Bench42b
+=== Win-rate suite ===
+Each repeat plays both colors on each board. Win rates are from the left player's perspective.
+x00      vs random   games=  6  W-D-L=  6-  0-  0  win%=100.00  win%(draw=0.5)=100.00  avg_margin=  23.17  fouls=0
+x42base  vs random   games=  6  W-D-L=  6-  0-  0  win%=100.00  win%(draw=0.5)=100.00  avg_margin=  32.33  fouls=0
+x00      vs x42base  games=  6  W-D-L=  0-  0-  6  win%=  0.00  win%(draw=0.5)=  0.00  avg_margin= -26.33  fouls=0
+x42      vs random   games=  6  W-D-L=  6-  0-  0  win%=100.00  win%(draw=0.5)=100.00  avg_margin=  30.50  fouls=0
+x42      vs x42base  games=  6  W-D-L=  5-  0-  1  win%= 83.33  win%(draw=0.5)= 83.33  avg_margin=   3.33  fouls=0
+x42      vs x00      games=  6  W-D-L=  6-  0-  0  win%=100.00  win%(draw=0.5)=100.00  avg_margin=  23.67  fouls=0
+
+=== (A) 中盤 TT+PVS 寄与 : 標準盤初期局面, 固定深さ 13 ===
+  α-β のみ (TT/PVS なし)     :       2,091,126 nodes      0.391 s   5,342,442 nps
+  α-β + TT + PVS         :         903,298 nodes      0.151 s   5,992,959 nps
+  → ノード数 2.31x 削減, 時間 2.60x 短縮
+
+=== (B) 終盤 fastest-first 寄与 : 空き 19 完全読み ===
+  静的順序のみ (FF なし)         :       1,932,019 nodes      0.283 s   6,825,857 nps
+  fastest-first 有効       :       1,081,541 nodes      0.134 s   8,095,694 nps
+  → ノード数 1.79x 削減, 時間 2.12x 短縮
